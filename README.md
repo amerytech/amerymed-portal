@@ -1,8 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## AmeryMed Web App
+
+This is the active codebase for the AmeryMed client/admin portal.
+
+Project path:
+
+- `/Users/amerytech/Downloads/amerymed-web`
+
+Main documentation:
+
+- [Developer Guide](/Users/amerytech/Downloads/amerymed-web/docs/DEVELOPER_GUIDE.md)
+- [SmarterASP Deployment Checklist](/Users/amerytech/Downloads/amerymed-web/docs/SMARTERASP_DEPLOYMENT_CHECKLIST.md)
+- [QA Testing Checklist](/Users/amerytech/Downloads/amerymed-web/docs/QA_TESTING_CHECKLIST.md)
+- [Mobile QA Checklist](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_QA_CHECKLIST.md)
+- [Mobile Store Packaging](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_STORE_PACKAGING.md)
+- [Mobile Store Submission Starter Pack](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_STORE_SUBMISSION_STARTER_PACK.md)
+
+PWA assets:
+
+- `/public/icons/icon-192.png`
+- `/public/icons/icon-512.png`
+- `/public/icons/apple-touch-icon.png`
+- `/app/manifest.ts`
+- `/public/sw.js`
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev
@@ -14,23 +37,33 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- [http://localhost:3000](http://localhost:3000)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Key pages:
 
-## Learn More
+- `app/client/page.tsx`
+- `app/admin/page.tsx`
+- `app/client/login/page.tsx`
+- `app/admin/login/page.tsx`
+- `app/api/notify-upload/route.ts`
+- `app/api/industry-updates/sync/route.ts`
 
-To learn more about Next.js, take a look at the following resources:
+Useful commands:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+For full architecture, database, deployment, and enhancement guidance, use:
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Developer Guide](/Users/amerytech/Downloads/amerymed-web/docs/DEVELOPER_GUIDE.md)
+- [SmarterASP Deployment Checklist](/Users/amerytech/Downloads/amerymed-web/docs/SMARTERASP_DEPLOYMENT_CHECKLIST.md)
+- [QA Testing Checklist](/Users/amerytech/Downloads/amerymed-web/docs/QA_TESTING_CHECKLIST.md)
+- [Mobile QA Checklist](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_QA_CHECKLIST.md)
+- [Mobile Store Packaging](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_STORE_PACKAGING.md)
+- [Mobile Store Submission Starter Pack](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_STORE_SUBMISSION_STARTER_PACK.md)
