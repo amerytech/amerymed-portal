@@ -7,7 +7,6 @@ const config: CapacitorConfig = {
   appId: 'com.amerytech.amerymedportal',
   appName: 'AmeryMed Portal',
   webDir: 'capacitor-shell',
-  bundledWebRuntime: false,
   server: serverUrl
     ? {
         url: serverUrl,
