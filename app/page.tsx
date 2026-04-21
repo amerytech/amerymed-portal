@@ -11,9 +11,6 @@ export default function HomePage() {
           </p>
 
           <div style={ctaRowStyle}>
-            <a href="/login" style={primaryLinkStyle}>
-              Open Unified Login
-            </a>
             <a href="/client/login" style={secondaryLinkStyle}>
               Client Login
             </a>
@@ -113,12 +110,6 @@ const baseLinkStyle: React.CSSProperties = {
   padding: '14px 18px',
   borderRadius: '16px',
   fontWeight: 800,
-};
-
-const primaryLinkStyle: React.CSSProperties = {
-  ...baseLinkStyle,
-  background: '#f97316',
-  color: '#fff',
 };
 
 const secondaryLinkStyle: React.CSSProperties = {

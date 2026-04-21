@@ -12,6 +12,18 @@ export default function ClientLogin() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  function getFriendlyAuthMessage(error: unknown) {
+    if (error instanceof Error) {
+      if (error.message === 'Failed to fetch') {
+        return 'The client portal could not reach the secure sign-in service. Please confirm network access and that the mobile app can open the live portal domain.';
+      }
+
+      return error.message;
+    }
+
+    return 'Client sign-in could not be completed. Please try again.';
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -54,7 +66,7 @@ export default function ClientLogin() {
 
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
@@ -100,6 +112,8 @@ export default function ClientLogin() {
       }
 
       window.location.assign('/client');
+    } catch (error) {
+      setMessage(getFriendlyAuthMessage(error));
     } finally {
       setLoading(false);
     }
