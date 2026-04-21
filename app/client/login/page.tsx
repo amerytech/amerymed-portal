@@ -4,6 +4,34 @@ import { useEffect, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
 import PortalLoginShell from '@/components/portal-login-shell';
 
+function isTransportErrorMessage(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  return (
+    normalized === 'failed to fetch' ||
+    normalized === 'load failed' ||
+    normalized.includes('network request failed') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('fetch')
+  );
+}
+
+function getFriendlyAuthMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (isTransportErrorMessage(error.message)) {
+      return 'The client portal could not reach the secure sign-in service from this device. Please confirm the iPhone app can reach both amerymed-portal.vercel.app and the Supabase project domain, then try again.';
+    }
+
+    return error.message;
+  }
+
+  if (typeof error === 'string' && isTransportErrorMessage(error)) {
+    return 'The client portal could not reach the secure sign-in service from this device. Please confirm the iPhone app can reach both amerymed-portal.vercel.app and the Supabase project domain, then try again.';
+  }
+
+  return 'Client sign-in could not be completed. Please try again.';
+}
+
 export default function ClientLogin() {
   const supabase = createBrowserSupabaseClient();
 
@@ -12,43 +40,42 @@ export default function ClientLogin() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  function getFriendlyAuthMessage(error: unknown) {
-    if (error instanceof Error) {
-      if (error.message === 'Failed to fetch') {
-        return 'The client portal could not reach the secure sign-in service. Please confirm network access and that the mobile app can open the live portal domain.';
-      }
-
-      return error.message;
-    }
-
-    return 'Client sign-in could not be completed. Please try again.';
-  }
-
   useEffect(() => {
     let cancelled = false;
 
     async function resumeExistingSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!session?.user || cancelled) return;
+        if (!session?.user || cancelled) return;
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, client_id')
-        .eq('id', session.user.id)
-        .single();
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role, client_id')
+          .eq('id', session.user.id)
+          .single();
 
-      if (cancelled || profileError || !profile) return;
+        if (cancelled) return;
 
-      if (profile.role === 'admin') {
-        window.location.assign('/admin');
-        return;
-      }
+        if (profileError || !profile) {
+          setMessage('An existing session was found, but the client portal profile could not be loaded.');
+          return;
+        }
 
-      if (profile.role === 'client' && profile.client_id) {
-        window.location.assign('/client');
+        if (profile.role === 'admin') {
+          window.location.assign('/admin');
+          return;
+        }
+
+        if (profile.role === 'client' && profile.client_id) {
+          window.location.assign('/client');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(getFriendlyAuthMessage(error));
+        }
       }
     }
 
@@ -81,7 +108,7 @@ export default function ClientLogin() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        setMessage('Login succeeded, but your account session did not finish loading. Please try again.');
+        setMessage(userError?.message || 'Login succeeded, but your account session did not finish loading. Please try again.');
         return;
       }
 
@@ -92,7 +119,7 @@ export default function ClientLogin() {
         .single();
 
       if (profileError || !profile) {
-        setMessage('Login succeeded, but no portal profile was found for this user.');
+        setMessage(profileError?.message || 'Login succeeded, but no portal profile was found for this user.');
         return;
       }
 
