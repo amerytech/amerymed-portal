@@ -24,6 +24,33 @@ That means:
 - Capacitor config: [capacitor.config.ts](/Users/amerytech/Downloads/amerymed-web/capacitor.config.ts)
 - Mobile shell page: [capacitor-shell/index.html](/Users/amerytech/Downloads/amerymed-web/capacitor-shell/index.html)
 
+## Separate client and admin apps
+
+If you want separate App Store listings for clients and staff, keep one hosted portal and generate two native wrappers:
+
+- Client app
+  - app name: `AmeryMed Portal`
+  - bundle id: `com.amerytech.amerymedportal`
+  - launch path: `/client/login`
+- Admin app
+  - app name: `AmeryMed Admin`
+  - bundle id: `com.amerytech.amerymedadmin`
+  - launch path: `/admin/login`
+
+Use:
+
+```bash
+npm run cap:sync:client
+npm run cap:sync:admin
+```
+
+Then open the iOS project for the app variant you are preparing:
+
+```bash
+npm run cap:open:ios:client
+npm run cap:open:ios:admin
+```
+
 ## First prerequisite
 
 Before store submission, confirm the live hosted portal works in a mobile browser:

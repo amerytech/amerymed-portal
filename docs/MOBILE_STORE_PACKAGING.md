@@ -48,6 +48,35 @@ export CAPACITOR_SERVER_URL="https://portal.yourdomain.com"
 npm run cap:sync
 ```
 
+## Separate client and admin app wrappers
+
+This repo can support two native app identities while still using one deployed portal.
+
+- Client app:
+  - app name: `AmeryMed Portal`
+  - bundle id: `com.amerytech.amerymedportal`
+  - start path: `/client/login`
+- Admin app:
+  - app name: `AmeryMed Admin`
+  - bundle id: `com.amerytech.amerymedadmin`
+  - start path: `/admin/login`
+
+Use these commands when preparing each wrapper:
+
+```bash
+npm run cap:sync:client
+npm run cap:sync:admin
+```
+
+For iOS, open the native project after syncing:
+
+```bash
+npm run cap:open:ios:client
+npm run cap:open:ios:admin
+```
+
+The native project still lives in the same repo, but the generated Capacitor config can now be aimed at the client or admin entry route before you archive the corresponding app instance.
+
 ## Open native projects
 
 For iPhone / iPad:

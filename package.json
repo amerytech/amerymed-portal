@@ -11,9 +11,13 @@
     "cap:add:ios": "npx cap add ios",
     "cap:add:android": "npx cap add android",
     "cap:sync": "npx cap sync",
+    "cap:sync:client": "CAPACITOR_APP_ID=com.amerytech.amerymedportal CAPACITOR_APP_NAME='AmeryMed Portal' CAPACITOR_START_PATH=/client/login npx cap sync",
+    "cap:sync:admin": "CAPACITOR_APP_ID=com.amerytech.amerymedadmin CAPACITOR_APP_NAME='AmeryMed Admin' CAPACITOR_START_PATH=/admin/login npx cap sync",
     "cap:copy": "npx cap copy",
     "cap:open:ios": "npx cap open ios",
-    "cap:open:android": "npx cap open android"
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios:client": "CAPACITOR_APP_ID=com.amerytech.amerymedportal CAPACITOR_APP_NAME='AmeryMed Portal' CAPACITOR_START_PATH=/client/login npx cap open ios",
+    "cap:open:ios:admin": "CAPACITOR_APP_ID=com.amerytech.amerymedadmin CAPACITOR_APP_NAME='AmeryMed Admin' CAPACITOR_START_PATH=/admin/login npx cap open ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
