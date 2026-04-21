@@ -84,6 +84,29 @@ function humanizeIdentifier(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function sanitizeStorageFileName(fileName: string) {
+  const trimmed = fileName.trim();
+  const dotIndex = trimmed.lastIndexOf('.');
+  const rawBaseName = dotIndex > 0 ? trimmed.slice(0, dotIndex) : trimmed;
+  const rawExtension = dotIndex > 0 ? trimmed.slice(dotIndex + 1) : '';
+
+  const safeBaseName = rawBaseName
+    .normalize('NFKD')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+
+  const safeExtension = rawExtension
+    .normalize('NFKD')
+    .replace(/[^\w]+/g, '')
+    .toLowerCase();
+
+  const normalizedBaseName = safeBaseName || 'file';
+
+  return safeExtension ? `${normalizedBaseName}.${safeExtension}` : normalizedBaseName;
+}
+
 export default function ClientPage() {
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
   const standardFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -481,7 +504,8 @@ export default function ClientPage() {
     try {
       setIsUploading(true);
       for (const item of selectedFiles) {
-        const filePath = `uploads/${Date.now()}_${item.name}`;
+        const safeFileName = sanitizeStorageFileName(item.name);
+        const filePath = `uploads/${Date.now()}_${safeFileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('client-documents')
