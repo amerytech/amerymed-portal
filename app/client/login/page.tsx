@@ -91,7 +91,7 @@ export default function ClientLogin() {
         }
 
         if (profile.role === 'client' && profile.client_id) {
-          window.location.assign('/client');
+          window.location.assign('/client/session');
         }
       } catch (error) {
         if (!cancelled) {
@@ -156,7 +156,7 @@ export default function ClientLogin() {
         return;
       }
 
-      window.location.replace('/client');
+      window.location.replace('/client/session');
     } catch (error) {
       setMessage(getFriendlyAuthMessage(error));
     } finally {
