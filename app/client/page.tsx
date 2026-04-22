@@ -115,6 +115,32 @@ async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 12
   }
 }
 
+async function pause(ms: number) {
+  await new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function resolveAuthenticatedUser() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const sessionResult = await withTimeout(supabase.auth.getSession(), 'loading your session');
+    const sessionUser = sessionResult.data.session?.user ?? null;
+
+    if (sessionUser) {
+      return sessionUser;
+    }
+
+    const userResult = await withTimeout(supabase.auth.getUser(), 'rechecking your signed-in user');
+    const user = userResult.data.user ?? null;
+
+    if (user) {
+      return user;
+    }
+
+    await pause(250);
+  }
+
+  return null;
+}
+
 function sanitizeStorageFileName(fileName: string) {
   const trimmed = fileName.trim();
   const dotIndex = trimmed.lastIndexOf('.');
@@ -213,15 +239,7 @@ export default function ClientPage() {
     setLoadingStep('Verifying your account session...');
 
     try {
-      const sessionResult = await withTimeout(supabase.auth.getSession(), 'loading your session');
-      const session = sessionResult.data.session;
-      let resolvedUser = session?.user ?? null;
-
-      if (!resolvedUser) {
-        setLoadingStep('Rechecking your signed-in user...');
-        const userResult = await withTimeout(supabase.auth.getUser(), 'rechecking your signed-in user');
-        resolvedUser = userResult.data.user ?? null;
-      }
+      const resolvedUser = await resolveAuthenticatedUser();
 
       if (loadRunIdRef.current !== runId) return;
 
