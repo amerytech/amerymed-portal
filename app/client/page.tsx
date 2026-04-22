@@ -138,6 +138,22 @@ function sanitizeStorageFileName(fileName: string) {
   return safeExtension ? `${normalizedBaseName}.${safeExtension}` : normalizedBaseName;
 }
 
+function isCapacitorApp() {
+  if (typeof window === 'undefined') return false;
+
+  const candidate = window as typeof window & {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+    };
+  };
+
+  if (typeof candidate.Capacitor?.isNativePlatform === 'function') {
+    return candidate.Capacitor.isNativePlatform();
+  }
+
+  return false;
+}
+
 export default function ClientPage() {
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
   const standardFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -166,10 +182,15 @@ export default function ClientPage() {
   const [portalState, setPortalState] = useState<PortalState>('checking');
   const [portalLoadError, setPortalLoadError] = useState('');
   const [loadingStep, setLoadingStep] = useState('Verifying your account session...');
+  const [isNativeWrapper, setIsNativeWrapper] = useState(false);
 
   useEffect(() => {
     loadingStepRef.current = loadingStep;
   }, [loadingStep]);
+
+  useEffect(() => {
+    setIsNativeWrapper(isCapacitorApp());
+  }, []);
 
   const effectiveClinicName = practiceName || clinicName;
   const personalizedDestination =
@@ -962,7 +983,9 @@ export default function ClientPage() {
                       type="button"
                       className={styles.captureButton}
                       disabled={!clientId || portalState !== 'ready'}
-                      onClick={() => mobileCameraInputRef.current?.click()}
+                      onClick={() =>
+                        (isNativeWrapper ? standardFileInputRef : mobileCameraInputRef).current?.click()
+                      }
                     >
                       Add Photo
                     </button>
@@ -977,8 +1000,9 @@ export default function ClientPage() {
                   </div>
 
                   <div className={styles.captureHint}>
-                    Each tap can add another page or image. This works well for front/back cards,
-                    EOB packets, face sheets, and other multi-page paperwork.
+                    {isNativeWrapper
+                      ? 'Inside the app, Add Photo uses the safer iPhone photo picker flow. You can still add front/back cards, EOB packets, face sheets, and other images.'
+                      : 'Each tap can add another page or image. This works well for front/back cards, EOB packets, face sheets, and other multi-page paperwork.'}
                   </div>
 
                   <div className={styles.captureChecklist}>
