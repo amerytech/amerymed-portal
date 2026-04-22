@@ -32,6 +32,27 @@ function getFriendlyAuthMessage(error: unknown) {
   return 'Client sign-in could not be completed. Please try again.';
 }
 
+async function waitForPersistedSession(
+  supabase: ReturnType<typeof createBrowserSupabaseClient>,
+  timeoutMs = 5000
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      return session;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+  }
+
+  return null;
+}
+
 export default function ClientLogin() {
   const supabase = createBrowserSupabaseClient();
 
@@ -102,20 +123,17 @@ export default function ClientLogin() {
         return;
       }
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const persistedSession = await waitForPersistedSession(supabase);
 
-      if (userError || !user) {
-        setMessage(userError?.message || 'Login succeeded, but your account session did not finish loading. Please try again.');
+      if (!persistedSession?.user) {
+        setMessage('Login succeeded, but your account session did not finish saving on this device. Please wait a moment and try again.');
         return;
       }
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, client_id')
-        .eq('id', user.id)
+        .eq('id', persistedSession.user.id)
         .single();
 
       if (profileError || !profile) {
@@ -138,7 +156,7 @@ export default function ClientLogin() {
         return;
       }
 
-      window.location.assign('/client');
+      window.location.replace('/client');
     } catch (error) {
       setMessage(getFriendlyAuthMessage(error));
     } finally {
