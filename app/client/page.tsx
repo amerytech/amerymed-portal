@@ -141,6 +141,8 @@ function sanitizeStorageFileName(fileName: string) {
 export default function ClientPage() {
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
   const standardFileInputRef = useRef<HTMLInputElement | null>(null);
+  const loadRunIdRef = useRef(0);
+  const loadingStepRef = useRef('Verifying your account session...');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [capturePreset, setCapturePreset] = useState<CapturePreset>('general');
   const [clinicName, setClinicName] = useState('');
@@ -165,6 +167,10 @@ export default function ClientPage() {
   const [portalLoadError, setPortalLoadError] = useState('');
   const [loadingStep, setLoadingStep] = useState('Verifying your account session...');
 
+  useEffect(() => {
+    loadingStepRef.current = loadingStep;
+  }, [loadingStep]);
+
   const effectiveClinicName = practiceName || clinicName;
   const personalizedDestination =
     displayName && effectiveClinicName
@@ -179,24 +185,34 @@ export default function ClientPage() {
     : 'Submit billing packets, review previous uploads, and keep every document tied to the right clinic and patient reference.';
 
   async function loadProfileAndHistory() {
+    const runId = Date.now();
+    loadRunIdRef.current = runId;
     setPortalState('checking');
     setPortalLoadError('');
     setLoadingStep('Verifying your account session...');
 
     try {
-      const {
-        data: { session },
-      } = await withTimeout(supabase.auth.getSession(), 'loading your session');
+      const sessionResult = await withTimeout(supabase.auth.getSession(), 'loading your session');
+      const session = sessionResult.data.session;
+      let resolvedUser = session?.user ?? null;
 
-      if (!session) {
+      if (!resolvedUser) {
+        setLoadingStep('Rechecking your signed-in user...');
+        const userResult = await withTimeout(supabase.auth.getUser(), 'rechecking your signed-in user');
+        resolvedUser = userResult.data.user ?? null;
+      }
+
+      if (loadRunIdRef.current !== runId) return;
+
+      if (!resolvedUser) {
         setPortalLoadError('No active mobile session was found. Please sign in again from the client login page.');
         setPortalState('blocked');
         return;
       }
 
-      setSessionEmail(session.user.email || '');
-      const metadata = session.user.user_metadata || {};
-      const emailLocalPart = (session.user.email || '').split('@')[0] || '';
+      setSessionEmail(resolvedUser.email || '');
+      const metadata = resolvedUser.user_metadata || {};
+      const emailLocalPart = (resolvedUser.email || '').split('@')[0] || '';
       const metadataDisplayName =
         metadata.display_name ||
         metadata.full_name ||
@@ -210,9 +226,11 @@ export default function ClientPage() {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, client_id')
-        .eq('id', session.user.id)
+        .eq('id', resolvedUser.id)
         .single()
         .then((result) => withTimeout(Promise.resolve(result), 'loading your portal profile'));
+
+      if (loadRunIdRef.current !== runId) return;
 
       if (profileError || !profile) {
         setClientId('');
@@ -285,7 +303,7 @@ export default function ClientPage() {
       setDisplayName(derivedDisplayName || '');
       setProviderAddress(clientRecord.address || '');
       setProviderNpi(String(clientRecord.individual_npi || ''));
-      setProviderContactEmail(clientRecord.contact_email || session.user.email || '');
+      setProviderContactEmail(clientRecord.contact_email || resolvedUser.email || '');
 
       void (async () => {
         try {
@@ -325,6 +343,8 @@ export default function ClientPage() {
         .order('created_at', { ascending: false })
         .then((result) => withTimeout(Promise.resolve(result), 'loading your upload history'));
 
+      if (loadRunIdRef.current !== runId) return;
+
       if (uploadsError) {
         setHistory([]);
         setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
@@ -346,15 +366,25 @@ export default function ClientPage() {
   }
 
   useEffect(() => {
-    loadProfileAndHistory();
+    const watchdogId = window.setTimeout(() => {
+      if (loadRunIdRef.current !== 0) {
+        setPortalLoadError(
+          `The client portal stayed on "${loadingStepRef.current}" too long. Please sign in again or retry from the client login page.`
+        );
+        setPortalState('blocked');
+      }
+    }, 20000);
+
+    void loadProfileAndHistory();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      loadProfileAndHistory();
+      void loadProfileAndHistory();
     });
 
     return () => {
+      window.clearTimeout(watchdogId);
       subscription.unsubscribe();
     };
   }, []);
