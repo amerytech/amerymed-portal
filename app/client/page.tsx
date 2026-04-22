@@ -84,6 +84,20 @@ function humanizeIdentifier(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+async function fetchJsonWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 function sanitizeStorageFileName(fileName: string) {
   const trimmed = fileName.trim();
   const dotIndex = trimmed.lastIndexOf('.');
@@ -150,149 +164,160 @@ export default function ClientPage() {
     setPortalState('checking');
     setPortalLoadError('');
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      setPortalLoadError('No active mobile session was found. Please sign in again from the client login page.');
-      setPortalState('blocked');
-      return;
-    }
-
-    setSessionEmail(session.user.email || '');
-    const metadata = session.user.user_metadata || {};
-    const emailLocalPart = (session.user.email || '').split('@')[0] || '';
-    const metadataDisplayName =
-      metadata.display_name ||
-      metadata.full_name ||
-      metadata.name ||
-      metadata.physician_name ||
-      metadata.doctor_name ||
-      humanizeIdentifier(emailLocalPart);
-    setDisplayName(metadataDisplayName);
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, client_id')
-      .eq('id', session.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      setClientId('');
-      setClinicName('');
-      setPracticeName('');
-      setProviderAddress('');
-      setProviderNpi('');
-      setProviderContactEmail('');
-      setHistory([]);
-      setHistoryMessage('We could not load your client profile.');
-      setPortalLoadError('Login succeeded, but no matching portal profile was found for this user.');
-      setPortalState('blocked');
-      return;
-    }
-
-    if (profile.role === 'admin') {
-      window.location.href = '/admin';
-      return;
-    }
-
-    if (profile.role !== 'client' || !profile.client_id) {
-      setClientId('');
-      setClinicName('');
-      setPracticeName('');
-      setProviderAddress('');
-      setProviderNpi('');
-      setProviderContactEmail('');
-      setHistory([]);
-      setHistoryMessage('No client profile is linked to this login.');
-      setPortalLoadError('This login is missing a linked client account. Please verify the QA user profile mapping.');
-      setPortalState('blocked');
-      return;
-    }
-
-    setClientId(profile.client_id);
-
-    const { data: clientRow, error: clientError } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', profile.client_id)
-      .single();
-
-    if (clientError) {
-      setClinicName('');
-      setPracticeName('');
-      setProviderAddress('');
-      setProviderNpi('');
-      setProviderContactEmail('');
-      setHistory([]);
-      setHistoryMessage('Your clinic profile could not be loaded.');
-      setPortalLoadError('Your client record could not be loaded after login.');
-      setPortalState('blocked');
-      return;
-    }
-
-    const clientRecord = (clientRow || {}) as ClientIdentityRow;
-    const derivedClinicName = clientRecord.clinic_name || '';
-    const derivedPracticeName =
-      clientRecord.practice_name ||
-      derivedClinicName;
-    const derivedDisplayName =
-      clientRecord.physician_name ||
-      clientRecord.display_name ||
-      metadataDisplayName;
-
-    setClinicName(derivedClinicName);
-    setPracticeName(derivedPracticeName || '');
-    setDisplayName(derivedDisplayName || '');
-    setProviderAddress(clientRecord.address || '');
-    setProviderNpi(String(clientRecord.individual_npi || ''));
-    setProviderContactEmail(clientRecord.contact_email || session.user.email || '');
-
     try {
-      await fetch('/api/industry-updates/sync', {
-        method: 'POST',
-      });
-    } catch {
-      // If sync fails, the portal still falls back to existing DB items or starter updates.
-    }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    const updatesResponse = await fetch('/api/industry-updates/sync', {
-      method: 'GET',
-    }).catch(() => null);
+      if (!session) {
+        setPortalLoadError('No active mobile session was found. Please sign in again from the client login page.');
+        setPortalState('blocked');
+        return;
+      }
 
-    const updatesPayload = updatesResponse ? await updatesResponse.json().catch(() => null) : null;
-    const updatesData = updatesPayload?.items as IndustryUpdateRow[] | undefined;
+      setSessionEmail(session.user.email || '');
+      const metadata = session.user.user_metadata || {};
+      const emailLocalPart = (session.user.email || '').split('@')[0] || '';
+      const metadataDisplayName =
+        metadata.display_name ||
+        metadata.full_name ||
+        metadata.name ||
+        metadata.physician_name ||
+        metadata.doctor_name ||
+        humanizeIdentifier(emailLocalPart);
+      setDisplayName(metadataDisplayName);
 
-    if (!updatesResponse?.ok) {
-      setIndustryUpdates([]);
-      setIndustryUpdatesMessage('Live feed is temporarily unavailable. Please try again shortly.');
-    } else if (updatesData && updatesData.length > 0) {
-      setIndustryUpdates(updatesData);
-      setIndustryUpdatesMessage('');
-    } else {
-      setIndustryUpdates([]);
-      setIndustryUpdatesMessage('No live feed items are available yet.');
-    }
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, client_id')
+        .eq('id', session.user.id)
+        .single();
 
-    const { data: uploads, error: uploadsError } = await supabase
-      .from('uploads')
-      .select(
-        'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
-      )
-      .eq('client_id', profile.client_id)
-      .order('created_at', { ascending: false });
+      if (profileError || !profile) {
+        setClientId('');
+        setClinicName('');
+        setPracticeName('');
+        setProviderAddress('');
+        setProviderNpi('');
+        setProviderContactEmail('');
+        setHistory([]);
+        setHistoryMessage('We could not load your client profile.');
+        setPortalLoadError('Login succeeded, but no matching portal profile was found for this user.');
+        setPortalState('blocked');
+        return;
+      }
 
-    if (uploadsError) {
-      setHistory([]);
-      setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
+      if (profile.role === 'admin') {
+        window.location.href = '/admin';
+        return;
+      }
+
+      if (profile.role !== 'client' || !profile.client_id) {
+        setClientId('');
+        setClinicName('');
+        setPracticeName('');
+        setProviderAddress('');
+        setProviderNpi('');
+        setProviderContactEmail('');
+        setHistory([]);
+        setHistoryMessage('No client profile is linked to this login.');
+        setPortalLoadError('This login is missing a linked client account. Please verify the QA user profile mapping.');
+        setPortalState('blocked');
+        return;
+      }
+
+      setClientId(profile.client_id);
+
+      const { data: clientRow, error: clientError } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', profile.client_id)
+        .single();
+
+      if (clientError) {
+        setClinicName('');
+        setPracticeName('');
+        setProviderAddress('');
+        setProviderNpi('');
+        setProviderContactEmail('');
+        setHistory([]);
+        setHistoryMessage('Your clinic profile could not be loaded.');
+        setPortalLoadError('Your client record could not be loaded after login.');
+        setPortalState('blocked');
+        return;
+      }
+
+      const clientRecord = (clientRow || {}) as ClientIdentityRow;
+      const derivedClinicName = clientRecord.clinic_name || '';
+      const derivedPracticeName =
+        clientRecord.practice_name ||
+        derivedClinicName;
+      const derivedDisplayName =
+        clientRecord.physician_name ||
+        clientRecord.display_name ||
+        metadataDisplayName;
+
+      setClinicName(derivedClinicName);
+      setPracticeName(derivedPracticeName || '');
+      setDisplayName(derivedDisplayName || '');
+      setProviderAddress(clientRecord.address || '');
+      setProviderNpi(String(clientRecord.individual_npi || ''));
+      setProviderContactEmail(clientRecord.contact_email || session.user.email || '');
+
+      void (async () => {
+        try {
+          await fetchJsonWithTimeout('/api/industry-updates/sync', { method: 'POST' }, 10000);
+        } catch {
+          // If sync fails, the portal still falls back to existing DB items or starter updates.
+        }
+
+        try {
+          const updatesResponse = await fetchJsonWithTimeout('/api/industry-updates/sync', { method: 'GET' }, 10000);
+          const updatesPayload = await updatesResponse.json().catch(() => null);
+          const updatesData = updatesPayload?.items as IndustryUpdateRow[] | undefined;
+
+          if (!updatesResponse.ok) {
+            setIndustryUpdates([]);
+            setIndustryUpdatesMessage('Live feed is temporarily unavailable. Please try again shortly.');
+          } else if (updatesData && updatesData.length > 0) {
+            setIndustryUpdates(updatesData);
+            setIndustryUpdatesMessage('');
+          } else {
+            setIndustryUpdates([]);
+            setIndustryUpdatesMessage('No live feed items are available yet.');
+          }
+        } catch {
+          setIndustryUpdates([]);
+          setIndustryUpdatesMessage('Live feed is temporarily unavailable. Please try again shortly.');
+        }
+      })();
+
+      const { data: uploads, error: uploadsError } = await supabase
+        .from('uploads')
+        .select(
+          'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
+        )
+        .eq('client_id', profile.client_id)
+        .order('created_at', { ascending: false });
+
+      if (uploadsError) {
+        setHistory([]);
+        setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
+        setPortalState('ready');
+        return;
+      }
+
+      setHistory(uploads || []);
+      setHistoryMessage('');
       setPortalState('ready');
-      return;
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setClientId('');
+      setHistory([]);
+      setHistoryMessage('Your portal could not finish loading on this device.');
+      setPortalLoadError(`The client portal hit a loading error: ${message}`);
+      setPortalState('blocked');
     }
-
-    setHistory(uploads || []);
-    setHistoryMessage('');
-    setPortalState('ready');
   }
 
   useEffect(() => {

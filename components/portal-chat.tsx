@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useEffectEvent, useMemo, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
 import styles from '@/components/portal-chat.module.css';
 
@@ -42,6 +42,79 @@ function sortMessagesAscending(a: MessageRow, b: MessageRow) {
   return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 }
 
+function useIncomingMessageSound(messages: MessageRow[], incomingRole: 'admin' | 'client') {
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const hasUnlockedAudioRef = useRef(false);
+  const lastMessageIdRef = useRef('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const unlockAudio = async () => {
+      if (hasUnlockedAudioRef.current) return;
+
+      const AudioContextCtor = window.AudioContext || (window as typeof window & {
+        webkitAudioContext?: typeof AudioContext;
+      }).webkitAudioContext;
+
+      if (!AudioContextCtor) return;
+
+      const context = audioContextRef.current || new AudioContextCtor();
+      audioContextRef.current = context;
+
+      if (context.state === 'suspended') {
+        await context.resume().catch(() => undefined);
+      }
+
+      hasUnlockedAudioRef.current = context.state === 'running';
+    };
+
+    const options: AddEventListenerOptions = { passive: true };
+    window.addEventListener('pointerdown', unlockAudio, options);
+    window.addEventListener('keydown', unlockAudio, options);
+    window.addEventListener('touchstart', unlockAudio, options);
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const latestMessage = messages[messages.length - 1];
+    const previousMessageId = lastMessageIdRef.current;
+    lastMessageIdRef.current = latestMessage.id;
+
+    if (!previousMessageId) return;
+    if (latestMessage.id === previousMessageId) return;
+    if (latestMessage.sender_role !== incomingRole) return;
+    if (!hasUnlockedAudioRef.current) return;
+
+    const context = audioContextRef.current;
+    if (!context || context.state !== 'running') return;
+
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    const startTime = context.currentTime;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, startTime);
+    oscillator.frequency.exponentialRampToValueAtTime(660, startTime + 0.18);
+
+    gainNode.gain.setValueAtTime(0.0001, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.05, startTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.22);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + 0.24);
+  }, [incomingRole, messages]);
+}
+
 export function ClientPortalChat({
   clientId,
   sessionEmail,
@@ -54,6 +127,8 @@ export function ClientPortalChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+
+  useIncomingMessageSound(messages, 'admin');
 
   const loadMessages = useEffectEvent(async () => {
     const { data, error: loadError } = await supabase
@@ -241,6 +316,8 @@ export function AdminPortalChat({ adminEmail }: { adminEmail: string }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+
+  useIncomingMessageSound(messages, 'client');
 
   const loadMessages = useEffectEvent(async () => {
     const { data, error: loadError } = await supabase
