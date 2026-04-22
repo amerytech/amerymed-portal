@@ -98,6 +98,23 @@ async function fetchJsonWithTimeout(input: RequestInfo | URL, init: RequestInit 
   }
 }
 
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 12000): Promise<T> {
+  let timeoutHandle = 0;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = window.setTimeout(() => {
+          reject(new Error(`Timed out while ${label}.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    window.clearTimeout(timeoutHandle);
+  }
+}
+
 function sanitizeStorageFileName(fileName: string) {
   const trimmed = fileName.trim();
   const dotIndex = trimmed.lastIndexOf('.');
@@ -146,6 +163,7 @@ export default function ClientPage() {
   const [clientId, setClientId] = useState('');
   const [portalState, setPortalState] = useState<PortalState>('checking');
   const [portalLoadError, setPortalLoadError] = useState('');
+  const [loadingStep, setLoadingStep] = useState('Verifying your account session...');
 
   const effectiveClinicName = practiceName || clinicName;
   const personalizedDestination =
@@ -163,11 +181,12 @@ export default function ClientPage() {
   async function loadProfileAndHistory() {
     setPortalState('checking');
     setPortalLoadError('');
+    setLoadingStep('Verifying your account session...');
 
     try {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await withTimeout(supabase.auth.getSession(), 'loading your session');
 
       if (!session) {
         setPortalLoadError('No active mobile session was found. Please sign in again from the client login page.');
@@ -187,11 +206,13 @@ export default function ClientPage() {
         humanizeIdentifier(emailLocalPart);
       setDisplayName(metadataDisplayName);
 
+      setLoadingStep('Loading your client profile...');
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, client_id')
         .eq('id', session.user.id)
-        .single();
+        .single()
+        .then((result) => withTimeout(Promise.resolve(result), 'loading your portal profile'));
 
       if (profileError || !profile) {
         setClientId('');
@@ -228,11 +249,13 @@ export default function ClientPage() {
 
       setClientId(profile.client_id);
 
+      setLoadingStep('Loading your clinic record...');
       const { data: clientRow, error: clientError } = await supabase
         .from('clients')
         .select('*')
         .eq('id', profile.client_id)
-        .single();
+        .single()
+        .then((result) => withTimeout(Promise.resolve(result), 'loading your clinic record'));
 
       if (clientError) {
         setClinicName('');
@@ -292,13 +315,15 @@ export default function ClientPage() {
         }
       })();
 
+      setLoadingStep('Loading your upload history...');
       const { data: uploads, error: uploadsError } = await supabase
         .from('uploads')
         .select(
           'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
         )
         .eq('client_id', profile.client_id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .then((result) => withTimeout(Promise.resolve(result), 'loading your upload history'));
 
       if (uploadsError) {
         setHistory([]);
@@ -647,7 +672,7 @@ export default function ClientPage() {
           <div className={styles.loadingBadge}>Client Portal</div>
           <h1 className={styles.loadingTitle}>Loading your workspace...</h1>
           <p className={styles.loadingText}>
-            We are verifying your account and preparing your upload history.
+            {loadingStep}
           </p>
         </div>
       </main>
