@@ -964,7 +964,6 @@ export default function ClientPage() {
                   ref={mobileCameraInputRef}
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={(e) => handleFileSelection(e.target.files?.[0] || null)}
                   className={styles.hiddenFileInput}
                   disabled={!clientId || portalState !== 'ready'}
