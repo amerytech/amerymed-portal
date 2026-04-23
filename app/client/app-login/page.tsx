@@ -34,7 +34,7 @@ function getFriendlyAuthMessage(error: unknown) {
 
 async function waitForPersistedSession(
   supabase: ReturnType<typeof createFreshBrowserSupabaseClient>,
-  timeoutMs = 6000
+  timeoutMs = 12000
 ) {
   const startedAt = Date.now();
 
@@ -72,7 +72,7 @@ export default function ClientAppLogin() {
     setMessage('');
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
@@ -82,10 +82,17 @@ export default function ClientAppLogin() {
         return;
       }
 
+      if (signInData.session?.access_token && signInData.session?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: signInData.session.access_token,
+          refresh_token: signInData.session.refresh_token,
+        });
+      }
+
       const persistedSession = await waitForPersistedSession(supabase);
 
       if (!persistedSession?.user) {
-        setMessage('Login succeeded, but your secure session did not finish saving on this device. Please wait a moment and try again.');
+        window.location.replace('/client/session?retry=1');
         return;
       }
 
