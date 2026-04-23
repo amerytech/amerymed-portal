@@ -280,7 +280,6 @@ export default function ClientPage() {
         setHistoryMessage('No client profile is linked to this login.');
         setPortalLoadError('This login is missing a linked client account. Please verify the QA user profile mapping.');
         setPortalState('blocked');
-        setDebugStep('client:blocked:client-link-missing');
         return;
       }
 
@@ -363,8 +362,6 @@ export default function ClientPage() {
         .eq('client_id', profile.client_id)
         .order('created_at', { ascending: false })
         .then((result) => withTimeout(Promise.resolve(result), 'loading your upload history'));
-
-      if (loadRunIdRef.current !== runId) return;
 
       if (uploadsError) {
         console.log('[client-page] uploads error', uploadsError.message);
