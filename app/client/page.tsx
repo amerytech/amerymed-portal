@@ -208,6 +208,7 @@ export default function ClientPage() {
   const [portalState, setPortalState] = useState<PortalState>('checking');
   const [portalLoadError, setPortalLoadError] = useState('');
   const [loadingStep, setLoadingStep] = useState('Verifying your account session...');
+  const [debugStep, setDebugStep] = useState('client:init');
   const [isNativeWrapper, setIsNativeWrapper] = useState(false);
 
   useEffect(() => {
@@ -234,9 +235,11 @@ export default function ClientPage() {
   async function loadProfileAndHistory() {
     const runId = Date.now();
     loadRunIdRef.current = runId;
+    console.log('[client-page] load started', runId);
     setPortalState('checking');
     setPortalLoadError('');
     setLoadingStep('Verifying your account session...');
+    setDebugStep('client:resolve-user');
 
     try {
       const resolvedUser = await resolveAuthenticatedUser();
@@ -244,11 +247,14 @@ export default function ClientPage() {
       if (loadRunIdRef.current !== runId) return;
 
       if (!resolvedUser) {
+        console.log('[client-page] no active user found');
         setPortalLoadError('No active mobile session was found. Please sign in again from the client login page.');
         setPortalState('blocked');
+        setDebugStep('client:blocked:no-user');
         return;
       }
 
+      console.log('[client-page] resolved user', resolvedUser.id);
       setSessionEmail(resolvedUser.email || '');
       const metadata = resolvedUser.user_metadata || {};
       const emailLocalPart = (resolvedUser.email || '').split('@')[0] || '';
@@ -262,6 +268,7 @@ export default function ClientPage() {
       setDisplayName(metadataDisplayName);
 
       setLoadingStep('Loading your client profile...');
+      setDebugStep('client:load-profile');
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, client_id')
@@ -272,6 +279,7 @@ export default function ClientPage() {
       if (loadRunIdRef.current !== runId) return;
 
       if (profileError || !profile) {
+        console.log('[client-page] profile missing', profileError?.message);
         setClientId('');
         setClinicName('');
         setPracticeName('');
@@ -282,15 +290,18 @@ export default function ClientPage() {
         setHistoryMessage('We could not load your client profile.');
         setPortalLoadError('Login succeeded, but no matching portal profile was found for this user.');
         setPortalState('blocked');
+        setDebugStep('client:blocked:profile-missing');
         return;
       }
 
       if (profile.role === 'admin') {
+        console.log('[client-page] admin profile found, redirecting');
         window.location.href = '/admin';
         return;
       }
 
       if (profile.role !== 'client' || !profile.client_id) {
+        console.log('[client-page] client profile linkage missing');
         setClientId('');
         setClinicName('');
         setPracticeName('');
@@ -301,12 +312,15 @@ export default function ClientPage() {
         setHistoryMessage('No client profile is linked to this login.');
         setPortalLoadError('This login is missing a linked client account. Please verify the QA user profile mapping.');
         setPortalState('blocked');
+        setDebugStep('client:blocked:client-link-missing');
         return;
       }
 
+      console.log('[client-page] client profile resolved', profile.client_id);
       setClientId(profile.client_id);
 
       setLoadingStep('Loading your clinic record...');
+      setDebugStep('client:load-clinic');
       const { data: clientRow, error: clientError } = await supabase
         .from('clients')
         .select('*')
@@ -315,6 +329,7 @@ export default function ClientPage() {
         .then((result) => withTimeout(Promise.resolve(result), 'loading your clinic record'));
 
       if (clientError) {
+        console.log('[client-page] clinic record missing', clientError.message);
         setClinicName('');
         setPracticeName('');
         setProviderAddress('');
@@ -324,6 +339,7 @@ export default function ClientPage() {
         setHistoryMessage('Your clinic profile could not be loaded.');
         setPortalLoadError('Your client record could not be loaded after login.');
         setPortalState('blocked');
+        setDebugStep('client:blocked:clinic-missing');
         return;
       }
 
@@ -373,6 +389,7 @@ export default function ClientPage() {
       })();
 
       setLoadingStep('Loading your upload history...');
+      setDebugStep('client:load-uploads');
       const { data: uploads, error: uploadsError } = await supabase
         .from('uploads')
         .select(
@@ -385,22 +402,28 @@ export default function ClientPage() {
       if (loadRunIdRef.current !== runId) return;
 
       if (uploadsError) {
+        console.log('[client-page] uploads error', uploadsError.message);
         setHistory([]);
         setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
         setPortalState('ready');
+        setDebugStep('client:ready:uploads-error');
         return;
       }
 
+      console.log('[client-page] client page ready');
       setHistory(uploads || []);
       setHistoryMessage('');
       setPortalState('ready');
+      setDebugStep('client:ready');
     } catch (error) {
       const message = getErrorMessage(error);
+      console.log('[client-page] load exception', message);
       setClientId('');
       setHistory([]);
       setHistoryMessage('Your portal could not finish loading on this device.');
       setPortalLoadError(`The client portal hit a loading error: ${message}`);
       setPortalState('blocked');
+      setDebugStep(`client:blocked:error:${message}`);
     }
   }
 
@@ -743,6 +766,7 @@ export default function ClientPage() {
           <p className={styles.loadingText}>
             {loadingStep}
           </p>
+          <p className={styles.loadingText}>Debug step: {debugStep}</p>
         </div>
       </main>
     );
@@ -757,6 +781,7 @@ export default function ClientPage() {
           <p className={styles.loadingText}>
             {portalLoadError || historyMessage || 'Your session could not finish loading on this device.'}
           </p>
+          <p className={styles.loadingText}>Debug step: {debugStep}</p>
           <div className={styles.mobileRecoveryCard}>
             <div className={styles.mobileRecoveryTitle}>Try this on mobile Safari</div>
             <div className={styles.mobileRecoveryStep}>1. Open `/client/login` again and sign in fresh.</div>

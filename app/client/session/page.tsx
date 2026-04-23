@@ -12,6 +12,7 @@ async function pause(ms: number) {
 
 async function waitForClientSession() {
   for (let attempt = 0; attempt < 12; attempt += 1) {
+    console.log(`[client-session] attempt ${attempt + 1}: checking session`);
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -19,6 +20,7 @@ async function waitForClientSession() {
     const resolvedUser = session?.user ?? (await supabase.auth.getUser()).data.user ?? null;
 
     if (resolvedUser) {
+      console.log('[client-session] user resolved', resolvedUser.id);
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('role, client_id')
@@ -26,10 +28,12 @@ async function waitForClientSession() {
         .single();
 
       if (!error && profile?.role === 'client' && profile.client_id) {
+        console.log('[client-session] client profile resolved', profile.client_id);
         return { ok: true as const };
       }
 
       if (!error && profile?.role === 'admin') {
+        console.log('[client-session] admin profile encountered, redirecting');
         return { ok: false as const, redirect: '/admin' };
       }
     }
@@ -42,21 +46,28 @@ async function waitForClientSession() {
 
 export default function ClientSessionBridgePage() {
   const [status, setStatus] = useState('Confirming your secure session...');
+  const [debugStep, setDebugStep] = useState('bridge:init');
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
+      console.log('[client-session] bridge started');
+      setDebugStep('bridge:confirm-session');
       setStatus('Confirming your secure session...');
       const result = await waitForClientSession();
       if (cancelled) return;
 
       if (result.ok) {
+        console.log('[client-session] redirecting to /client');
+        setDebugStep('bridge:redirect-client');
         setStatus('Opening your client workspace...');
         window.location.replace('/client');
         return;
       }
 
+      console.log('[client-session] redirecting to', result.redirect);
+      setDebugStep(`bridge:redirect:${result.redirect}`);
       setStatus('Refreshing your login...');
       window.location.replace(result.redirect);
     })();
@@ -72,6 +83,7 @@ export default function ClientSessionBridgePage() {
         <div className={styles.loadingBadge}>Client Portal</div>
         <h1 className={styles.loadingTitle}>Preparing your session...</h1>
         <p className={styles.loadingText}>{status}</p>
+        <p className={styles.loadingText}>Debug step: {debugStep}</p>
       </div>
     </main>
   );
