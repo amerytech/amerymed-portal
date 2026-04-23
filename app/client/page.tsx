@@ -44,6 +44,11 @@ type ClientIdentityRow = {
 
 type PortalState = 'checking' | 'ready' | 'blocked';
 type CapturePreset = 'general' | 'insurance-front' | 'insurance-back' | 'paper-packet';
+type ClientAccess = {
+  userEmail: string;
+  userId: string;
+  clientId: string;
+};
 
 const supabase = createBrowserSupabaseClient();
 
@@ -115,18 +120,6 @@ async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 12
   }
 }
 
-async function resolveAuthenticatedUser() {
-  const sessionResult = await withTimeout(supabase.auth.getSession(), 'loading your session');
-  const sessionUser = sessionResult.data.session?.user ?? null;
-
-  if (sessionUser) {
-    return sessionUser;
-  }
-
-  const userResult = await withTimeout(supabase.auth.getUser(), 'rechecking your signed-in user');
-  return userResult.data.user ?? null;
-}
-
 function sanitizeStorageFileName(fileName: string) {
   const trimmed = fileName.trim();
   const dotIndex = trimmed.lastIndexOf('.');
@@ -183,6 +176,7 @@ export default function ClientPage() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [sessionEmail, setSessionEmail] = useState('');
+  const [sessionUserId, setSessionUserId] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [history, setHistory] = useState<UploadRow[]>([]);
   const [historyMessage, setHistoryMessage] = useState('Loading upload history...');
@@ -193,6 +187,7 @@ export default function ClientPage() {
   const [portalLoadError, setPortalLoadError] = useState('');
   const [loadingStep, setLoadingStep] = useState('Verifying your account session...');
   const [isNativeWrapper, setIsNativeWrapper] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     setIsNativeWrapper(isCapacitorApp());
@@ -211,86 +206,26 @@ export default function ClientPage() {
     ? `Review uploads for ${personalizedDestination}, send new billing documents, and keep every file tied to the right patient reference and clinic workflow.`
     : 'Submit billing packets, review previous uploads, and keep every document tied to the right clinic and patient reference.';
 
-  async function loadProfileAndHistory() {
-    console.log('[client-page] load started');
+  async function loadProfileAndHistory(access: ClientAccess) {
+    console.log('[client-page] load started for', access.userId);
     setPortalState('checking');
     setPortalLoadError('');
-    setLoadingStep('Verifying your account session...');
+    setLoadingStep('Loading your client workspace...');
 
     try {
-      const resolvedUser = await resolveAuthenticatedUser();
-
-      if (!resolvedUser) {
-        console.log('[client-page] no active user found');
-        window.location.href = '/client/login';
-        return;
-      }
-
-      console.log('[client-page] resolved user', resolvedUser.id);
-      setSessionEmail(resolvedUser.email || '');
-      const metadata = resolvedUser.user_metadata || {};
-      const emailLocalPart = (resolvedUser.email || '').split('@')[0] || '';
+      setSessionEmail(access.userEmail);
+      setSessionUserId(access.userId);
+      const emailLocalPart = access.userEmail.split('@')[0] || '';
       const metadataDisplayName =
-        metadata.display_name ||
-        metadata.full_name ||
-        metadata.name ||
-        metadata.physician_name ||
-        metadata.doctor_name ||
         humanizeIdentifier(emailLocalPart);
       setDisplayName(metadataDisplayName);
-
-      setLoadingStep('Loading your client profile...');
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, client_id')
-        .eq('id', resolvedUser.id)
-        .single()
-        .then((result) => withTimeout(Promise.resolve(result), 'loading your portal profile'));
-
-      if (profileError || !profile) {
-        console.log('[client-page] profile missing', profileError?.message);
-        setClientId('');
-        setClinicName('');
-        setPracticeName('');
-        setProviderAddress('');
-        setProviderNpi('');
-        setProviderContactEmail('');
-        setHistory([]);
-        setHistoryMessage('We could not load your client profile.');
-        setPortalLoadError('Login succeeded, but no matching portal profile was found for this user.');
-        setPortalState('blocked');
-        return;
-      }
-
-      if (profile.role === 'admin') {
-        console.log('[client-page] admin profile found, redirecting');
-        window.location.href = '/admin';
-        return;
-      }
-
-      if (profile.role !== 'client' || !profile.client_id) {
-        console.log('[client-page] client profile linkage missing');
-        setClientId('');
-        setClinicName('');
-        setPracticeName('');
-        setProviderAddress('');
-        setProviderNpi('');
-        setProviderContactEmail('');
-        setHistory([]);
-        setHistoryMessage('No client profile is linked to this login.');
-        setPortalLoadError('This login is missing a linked client account. Please verify the QA user profile mapping.');
-        setPortalState('blocked');
-        return;
-      }
-
-      console.log('[client-page] client profile resolved', profile.client_id);
-      setClientId(profile.client_id);
+      setClientId(access.clientId);
 
       setLoadingStep('Loading your clinic record...');
       const { data: clientRow, error: clientError } = await supabase
         .from('clients')
         .select('*')
-        .eq('id', profile.client_id)
+        .eq('id', access.clientId)
         .single()
         .then((result) => withTimeout(Promise.resolve(result), 'loading your clinic record'));
 
@@ -323,7 +258,7 @@ export default function ClientPage() {
       setDisplayName(derivedDisplayName || '');
       setProviderAddress(clientRecord.address || '');
       setProviderNpi(String(clientRecord.individual_npi || ''));
-      setProviderContactEmail(clientRecord.contact_email || resolvedUser.email || '');
+      setProviderContactEmail(clientRecord.contact_email || access.userEmail || '');
 
       void (async () => {
         try {
@@ -359,7 +294,7 @@ export default function ClientPage() {
         .select(
           'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
         )
-        .eq('client_id', profile.client_id)
+        .eq('client_id', access.clientId)
         .order('created_at', { ascending: false })
         .then((result) => withTimeout(Promise.resolve(result), 'loading your upload history'));
 
@@ -387,11 +322,50 @@ export default function ClientPage() {
   }
 
   useEffect(() => {
-    void loadProfileAndHistory();
+    void (async () => {
+      setPortalState('checking');
+      setPortalLoadError('');
+      setLoadingStep('Verifying your account session...');
 
-    return () => {
-      // No-op cleanup: client access is resolved on first page load to match the stable admin flow.
-    };
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        window.location.href = '/client/login';
+        return;
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('role, client_id')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error || !profile) {
+        setPortalLoadError('Your client portal profile could not be loaded for this account.');
+        setPortalState('blocked');
+        return;
+      }
+
+      if (profile.role === 'admin') {
+        window.location.href = '/admin';
+        return;
+      }
+
+      if (profile.role !== 'client' || !profile.client_id) {
+        setPortalLoadError('This account is not linked to an active client workspace yet.');
+        setPortalState('blocked');
+        return;
+      }
+
+      setAuthorized(true);
+      void loadProfileAndHistory({
+        userEmail: session.user.email || '',
+        userId: session.user.id,
+        clientId: profile.client_id,
+      });
+    })();
   }, []);
 
   async function handleLogout() {
@@ -662,7 +636,11 @@ export default function ClientPage() {
       setCategory('EOB');
       setCapturePreset('general');
 
-      await loadProfileAndHistory();
+      await loadProfileAndHistory({
+        userEmail: sessionEmail,
+        userId: sessionUserId,
+        clientId,
+      });
     } catch (error: unknown) {
       setMessage(`Upload failed: ${getErrorMessage(error)}`);
       setMessageType('error');
@@ -700,7 +678,7 @@ export default function ClientPage() {
     }
   }
 
-  if (portalState === 'checking') {
+  if (portalState === 'checking' || !authorized) {
     return (
       <main className={styles.page}>
         <div className={styles.loadingCard}>

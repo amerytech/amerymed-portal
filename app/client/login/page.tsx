@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
 import PortalLoginShell from '@/components/portal-login-shell';
 
@@ -32,27 +32,6 @@ function getFriendlyAuthMessage(error: unknown) {
   return 'Client sign-in could not be completed. Please try again.';
 }
 
-async function waitForPersistedSession(
-  supabase: ReturnType<typeof createBrowserSupabaseClient>,
-  timeoutMs = 5000
-) {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (session?.user) {
-      return session;
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
-  }
-
-  return null;
-}
-
 export default function ClientLogin() {
   const supabase = createBrowserSupabaseClient();
 
@@ -60,52 +39,6 @@ export default function ClientLogin() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function resumeExistingSession() {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.user || cancelled) return;
-
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role, client_id')
-          .eq('id', session.user.id)
-          .single();
-
-        if (cancelled) return;
-
-        if (profileError || !profile) {
-          setMessage('An existing session was found, but the client portal profile could not be loaded.');
-          return;
-        }
-
-        if (profile.role === 'admin') {
-          window.location.assign('/admin');
-          return;
-        }
-
-        if (profile.role === 'client' && profile.client_id) {
-          window.location.assign('/client');
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setMessage(getFriendlyAuthMessage(error));
-        }
-      }
-    }
-
-    void resumeExistingSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -120,39 +53,6 @@ export default function ClientLogin() {
 
       if (signInError) {
         setMessage(signInError.message);
-        return;
-      }
-
-      const persistedSession = await waitForPersistedSession(supabase);
-
-      if (!persistedSession?.user) {
-        setMessage('Login succeeded, but your account session did not finish saving on this device. Please wait a moment and try again.');
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, client_id')
-        .eq('id', persistedSession.user.id)
-        .single();
-
-      if (profileError || !profile) {
-        setMessage(profileError?.message || 'Login succeeded, but no portal profile was found for this user.');
-        return;
-      }
-
-      if (profile.role === 'admin') {
-        window.location.href = '/admin';
-        return;
-      }
-
-      if (profile.role !== 'client') {
-        setMessage('This account is not configured as a client portal user.');
-        return;
-      }
-
-      if (!profile.client_id) {
-        setMessage('This client account is not linked to a clinic record yet.');
         return;
       }
 
