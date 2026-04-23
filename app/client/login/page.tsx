@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
 import PortalLoginShell from '@/components/portal-login-shell';
 
@@ -32,8 +32,29 @@ function getFriendlyAuthMessage(error: unknown) {
   return 'Client sign-in could not be completed. Please try again.';
 }
 
+async function waitForPersistedSession(
+  supabase: ReturnType<typeof createBrowserSupabaseClient>,
+  timeoutMs = 5000
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      return session;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+  }
+
+  return null;
+}
+
 export default function ClientLogin() {
-  const supabase = createBrowserSupabaseClient();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,6 +74,13 @@ export default function ClientLogin() {
 
       if (signInError) {
         setMessage(signInError.message);
+        return;
+      }
+
+      const persistedSession = await waitForPersistedSession(supabase);
+
+      if (!persistedSession?.user) {
+        setMessage('Login succeeded, but your secure session did not finish saving on this device. Please wait a moment and try again.');
         return;
       }
 

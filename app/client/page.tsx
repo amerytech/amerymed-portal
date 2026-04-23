@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
 import { ClientPortalChat } from '@/components/portal-chat';
 import styles from '@/app/client/client-portal.module.css';
@@ -49,8 +49,6 @@ type ClientAccess = {
   userId: string;
   clientId: string;
 };
-
-const supabase = createBrowserSupabaseClient();
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -160,6 +158,7 @@ function isCapacitorApp() {
 }
 
 export default function ClientPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
   const standardFileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -206,7 +205,7 @@ export default function ClientPage() {
     ? `Review uploads for ${personalizedDestination}, send new billing documents, and keep every file tied to the right patient reference and clinic workflow.`
     : 'Submit billing packets, review previous uploads, and keep every document tied to the right clinic and patient reference.';
 
-  async function loadProfileAndHistory(access: ClientAccess) {
+  const loadProfileAndHistory = useCallback(async (access: ClientAccess) => {
     console.log('[client-page] load started for', access.userId);
     setPortalState('checking');
     setPortalLoadError('');
@@ -319,7 +318,7 @@ export default function ClientPage() {
       setPortalLoadError(`The client portal hit a loading error: ${message}`);
       setPortalState('blocked');
     }
-  }
+  }, [supabase]);
 
   useEffect(() => {
     void (async () => {
@@ -366,7 +365,7 @@ export default function ClientPage() {
         clientId: profile.client_id,
       });
     })();
-  }, []);
+  }, [loadProfileAndHistory, supabase]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
