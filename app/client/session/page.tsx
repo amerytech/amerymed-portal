@@ -46,28 +46,24 @@ async function waitForClientSession() {
 
 export default function ClientSessionBridgePage() {
   const [status, setStatus] = useState('Confirming your secure session...');
-  const [debugStep, setDebugStep] = useState('bridge:init');
 
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
       console.log('[client-session] bridge started');
-      setDebugStep('bridge:confirm-session');
       setStatus('Confirming your secure session...');
       const result = await waitForClientSession();
       if (cancelled) return;
 
       if (result.ok) {
         console.log('[client-session] redirecting to /client');
-        setDebugStep('bridge:redirect-client');
         setStatus('Opening your client workspace...');
         window.location.replace('/client');
         return;
       }
 
       console.log('[client-session] redirecting to', result.redirect);
-      setDebugStep(`bridge:redirect:${result.redirect}`);
       setStatus('Refreshing your login...');
       window.location.replace(result.redirect);
     })();
@@ -83,7 +79,6 @@ export default function ClientSessionBridgePage() {
         <div className={styles.loadingBadge}>Client Portal</div>
         <h1 className={styles.loadingTitle}>Preparing your session...</h1>
         <p className={styles.loadingText}>{status}</p>
-        <p className={styles.loadingText}>Debug step: {debugStep}</p>
       </div>
     </main>
   );

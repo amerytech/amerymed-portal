@@ -115,30 +115,16 @@ async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 12
   }
 }
 
-async function pause(ms: number) {
-  await new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
 async function resolveAuthenticatedUser() {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const sessionResult = await withTimeout(supabase.auth.getSession(), 'loading your session');
-    const sessionUser = sessionResult.data.session?.user ?? null;
+  const sessionResult = await withTimeout(supabase.auth.getSession(), 'loading your session');
+  const sessionUser = sessionResult.data.session?.user ?? null;
 
-    if (sessionUser) {
-      return sessionUser;
-    }
-
-    const userResult = await withTimeout(supabase.auth.getUser(), 'rechecking your signed-in user');
-    const user = userResult.data.user ?? null;
-
-    if (user) {
-      return user;
-    }
-
-    await pause(250);
+  if (sessionUser) {
+    return sessionUser;
   }
 
-  return null;
+  const userResult = await withTimeout(supabase.auth.getUser(), 'rechecking your signed-in user');
+  return userResult.data.user ?? null;
 }
 
 function sanitizeStorageFileName(fileName: string) {
@@ -183,8 +169,6 @@ function isCapacitorApp() {
 export default function ClientPage() {
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
   const standardFileInputRef = useRef<HTMLInputElement | null>(null);
-  const loadRunIdRef = useRef(0);
-  const loadingStepRef = useRef('Verifying your account session...');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [capturePreset, setCapturePreset] = useState<CapturePreset>('general');
   const [clinicName, setClinicName] = useState('');
@@ -208,12 +192,7 @@ export default function ClientPage() {
   const [portalState, setPortalState] = useState<PortalState>('checking');
   const [portalLoadError, setPortalLoadError] = useState('');
   const [loadingStep, setLoadingStep] = useState('Verifying your account session...');
-  const [debugStep, setDebugStep] = useState('client:init');
   const [isNativeWrapper, setIsNativeWrapper] = useState(false);
-
-  useEffect(() => {
-    loadingStepRef.current = loadingStep;
-  }, [loadingStep]);
 
   useEffect(() => {
     setIsNativeWrapper(isCapacitorApp());
@@ -233,24 +212,17 @@ export default function ClientPage() {
     : 'Submit billing packets, review previous uploads, and keep every document tied to the right clinic and patient reference.';
 
   async function loadProfileAndHistory() {
-    const runId = Date.now();
-    loadRunIdRef.current = runId;
-    console.log('[client-page] load started', runId);
+    console.log('[client-page] load started');
     setPortalState('checking');
     setPortalLoadError('');
     setLoadingStep('Verifying your account session...');
-    setDebugStep('client:resolve-user');
 
     try {
       const resolvedUser = await resolveAuthenticatedUser();
 
-      if (loadRunIdRef.current !== runId) return;
-
       if (!resolvedUser) {
         console.log('[client-page] no active user found');
-        setPortalLoadError('No active mobile session was found. Please sign in again from the client login page.');
-        setPortalState('blocked');
-        setDebugStep('client:blocked:no-user');
+        window.location.href = '/client/login';
         return;
       }
 
@@ -268,15 +240,12 @@ export default function ClientPage() {
       setDisplayName(metadataDisplayName);
 
       setLoadingStep('Loading your client profile...');
-      setDebugStep('client:load-profile');
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, client_id')
         .eq('id', resolvedUser.id)
         .single()
         .then((result) => withTimeout(Promise.resolve(result), 'loading your portal profile'));
-
-      if (loadRunIdRef.current !== runId) return;
 
       if (profileError || !profile) {
         console.log('[client-page] profile missing', profileError?.message);
@@ -290,7 +259,6 @@ export default function ClientPage() {
         setHistoryMessage('We could not load your client profile.');
         setPortalLoadError('Login succeeded, but no matching portal profile was found for this user.');
         setPortalState('blocked');
-        setDebugStep('client:blocked:profile-missing');
         return;
       }
 
@@ -320,7 +288,6 @@ export default function ClientPage() {
       setClientId(profile.client_id);
 
       setLoadingStep('Loading your clinic record...');
-      setDebugStep('client:load-clinic');
       const { data: clientRow, error: clientError } = await supabase
         .from('clients')
         .select('*')
@@ -339,7 +306,6 @@ export default function ClientPage() {
         setHistoryMessage('Your clinic profile could not be loaded.');
         setPortalLoadError('Your client record could not be loaded after login.');
         setPortalState('blocked');
-        setDebugStep('client:blocked:clinic-missing');
         return;
       }
 
@@ -389,7 +355,6 @@ export default function ClientPage() {
       })();
 
       setLoadingStep('Loading your upload history...');
-      setDebugStep('client:load-uploads');
       const { data: uploads, error: uploadsError } = await supabase
         .from('uploads')
         .select(
@@ -406,7 +371,6 @@ export default function ClientPage() {
         setHistory([]);
         setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
         setPortalState('ready');
-        setDebugStep('client:ready:uploads-error');
         return;
       }
 
@@ -414,7 +378,6 @@ export default function ClientPage() {
       setHistory(uploads || []);
       setHistoryMessage('');
       setPortalState('ready');
-      setDebugStep('client:ready');
     } catch (error) {
       const message = getErrorMessage(error);
       console.log('[client-page] load exception', message);
@@ -423,31 +386,14 @@ export default function ClientPage() {
       setHistoryMessage('Your portal could not finish loading on this device.');
       setPortalLoadError(`The client portal hit a loading error: ${message}`);
       setPortalState('blocked');
-      setDebugStep(`client:blocked:error:${message}`);
     }
   }
 
   useEffect(() => {
-    const watchdogId = window.setTimeout(() => {
-      if (loadRunIdRef.current !== 0) {
-        setPortalLoadError(
-          `The client portal stayed on "${loadingStepRef.current}" too long. Please sign in again or retry from the client login page.`
-        );
-        setPortalState('blocked');
-      }
-    }, 20000);
-
     void loadProfileAndHistory();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void loadProfileAndHistory();
-    });
-
     return () => {
-      window.clearTimeout(watchdogId);
-      subscription.unsubscribe();
+      // No-op cleanup: client access is resolved on first page load to match the stable admin flow.
     };
   }, []);
 
@@ -763,10 +709,7 @@ export default function ClientPage() {
         <div className={styles.loadingCard}>
           <div className={styles.loadingBadge}>Client Portal</div>
           <h1 className={styles.loadingTitle}>Loading your workspace...</h1>
-          <p className={styles.loadingText}>
-            {loadingStep}
-          </p>
-          <p className={styles.loadingText}>Debug step: {debugStep}</p>
+          <p className={styles.loadingText}>{loadingStep}</p>
         </div>
       </main>
     );
@@ -781,7 +724,6 @@ export default function ClientPage() {
           <p className={styles.loadingText}>
             {portalLoadError || historyMessage || 'Your session could not finish loading on this device.'}
           </p>
-          <p className={styles.loadingText}>Debug step: {debugStep}</p>
           <div className={styles.mobileRecoveryCard}>
             <div className={styles.mobileRecoveryTitle}>Try this on mobile Safari</div>
             <div className={styles.mobileRecoveryStep}>1. Open `/client/login` again and sign in fresh.</div>
