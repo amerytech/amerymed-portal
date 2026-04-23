@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
+import { createFreshBrowserSupabaseClient } from '@/lib/supabase-browser';
 import { ClientPortalChat } from '@/components/portal-chat';
 import styles from '@/app/client/client-portal.module.css';
 
@@ -158,7 +158,7 @@ function isCapacitorApp() {
 }
 
 export default function ClientPage() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const supabase = useMemo(() => createFreshBrowserSupabaseClient(), []);
   const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
   const standardFileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);

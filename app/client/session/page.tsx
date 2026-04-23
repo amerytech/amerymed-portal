@@ -1,16 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
+import { createFreshBrowserSupabaseClient } from '@/lib/supabase-browser';
 import styles from '@/app/client/client-portal.module.css';
-
-const supabase = createBrowserSupabaseClient();
 
 async function pause(ms: number) {
   await new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function waitForClientSession() {
+  const supabase = createFreshBrowserSupabaseClient();
+
   for (let attempt = 0; attempt < 12; attempt += 1) {
     console.log(`[client-session] attempt ${attempt + 1}: checking session`);
     const {

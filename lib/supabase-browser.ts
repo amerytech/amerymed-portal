@@ -95,10 +95,15 @@ function createBrowserStorage(): SupabaseStorageAdapter | undefined {
 export function createBrowserSupabaseClient() {
   if (browserClient) return browserClient;
 
+  browserClient = createFreshBrowserSupabaseClient();
+  return browserClient;
+}
+
+export function createFreshBrowserSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  browserClient = createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -107,6 +112,4 @@ export function createBrowserSupabaseClient() {
       storage: createBrowserStorage(),
     },
   });
-
-  return browserClient;
 }
