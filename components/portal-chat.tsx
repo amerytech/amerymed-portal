@@ -42,10 +42,34 @@ function sortMessagesAscending(a: MessageRow, b: MessageRow) {
   return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
 }
 
-function useIncomingMessageSound(messages: MessageRow[], incomingRole: 'admin' | 'client') {
+function useMessageSound(messages: MessageRow[], incomingRole: 'admin' | 'client') {
   const audioContextRef = useRef<AudioContext | null>(null);
   const hasUnlockedAudioRef = useRef(false);
   const lastMessageIdRef = useRef('');
+
+  const playTone = (fromHz: number, toHz: number, duration = 0.24, peak = 0.05) => {
+    if (!hasUnlockedAudioRef.current) return;
+
+    const context = audioContextRef.current;
+    if (!context || context.state !== 'running') return;
+
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    const startTime = context.currentTime;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(fromHz, startTime);
+    oscillator.frequency.exponentialRampToValueAtTime(toHz, startTime + Math.max(duration - 0.06, 0.05));
+
+    gainNode.gain.setValueAtTime(0.0001, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(peak, startTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration + 0.02);
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -93,26 +117,14 @@ function useIncomingMessageSound(messages: MessageRow[], incomingRole: 'admin' |
     if (latestMessage.sender_role !== incomingRole) return;
     if (!hasUnlockedAudioRef.current) return;
 
-    const context = audioContextRef.current;
-    if (!context || context.state !== 'running') return;
-
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-    const startTime = context.currentTime;
-
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, startTime);
-    oscillator.frequency.exponentialRampToValueAtTime(660, startTime + 0.18);
-
-    gainNode.gain.setValueAtTime(0.0001, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.05, startTime + 0.02);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.22);
-
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
-    oscillator.start(startTime);
-    oscillator.stop(startTime + 0.24);
+    playTone(880, 660, 0.22, 0.05);
   }, [incomingRole, messages]);
+
+  return {
+    playSentMessageSound() {
+      playTone(660, 880, 0.16, 0.035);
+    },
+  };
 }
 
 export function ClientPortalChat({
@@ -128,7 +140,7 @@ export function ClientPortalChat({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  useIncomingMessageSound(messages, 'admin');
+  const { playSentMessageSound } = useMessageSound(messages, 'admin');
 
   const loadMessages = useEffectEvent(async () => {
     const { data, error: loadError } = await supabase
@@ -220,6 +232,7 @@ export function ClientPortalChat({
     if (insertedRows && insertedRows[0]) {
       setMessages((prev) => [...prev, insertedRows[0]].sort(sortMessagesAscending));
     }
+    playSentMessageSound();
   }
 
   return (
@@ -317,7 +330,7 @@ export function AdminPortalChat({ adminEmail }: { adminEmail: string }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  useIncomingMessageSound(messages, 'client');
+  const { playSentMessageSound } = useMessageSound(messages, 'client');
 
   const loadMessages = useEffectEvent(async () => {
     const { data, error: loadError } = await supabase
@@ -442,6 +455,7 @@ export function AdminPortalChat({ adminEmail }: { adminEmail: string }) {
     if (insertedRows && insertedRows[0]) {
       setMessages((prev) => [...prev, insertedRows[0]].sort(sortMessagesAscending));
     }
+    playSentMessageSound();
   }
 
   return (
