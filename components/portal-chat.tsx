@@ -207,16 +207,23 @@ export function ClientPortalChat({
     setError('');
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setSending(false);
+      setError('Message failed: your client session could not be confirmed. Please refresh and try again.');
+      return;
+    }
 
     const { data: insertedRows, error: insertError } = await supabase
       .from('messages')
       .insert({
         client_id: clientId,
-        sender_user_id: session?.user?.id || null,
+        sender_user_id: user.id,
         sender_role: 'client',
-        sender_email: sessionEmail || session?.user?.email || null,
+        sender_email: sessionEmail || user.email || null,
         body: trimmed,
       })
       .select('id, client_id, sender_user_id, sender_role, sender_email, body, created_at');
@@ -430,16 +437,23 @@ export function AdminPortalChat({ adminEmail }: { adminEmail: string }) {
     setError('');
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setSending(false);
+      setError('Message failed: your admin session could not be confirmed. Please refresh and try again.');
+      return;
+    }
 
     const { data: insertedRows, error: insertError } = await supabase
       .from('messages')
       .insert({
         client_id: selectedClientId,
-        sender_user_id: session?.user?.id || null,
+        sender_user_id: user.id,
         sender_role: 'admin',
-        sender_email: adminEmail || session?.user?.email || null,
+        sender_email: adminEmail || user.email || null,
         body: trimmed,
       })
       .select('id, client_id, sender_user_id, sender_role, sender_email, body, created_at');
