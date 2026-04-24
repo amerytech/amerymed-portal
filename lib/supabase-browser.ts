@@ -1,7 +1,7 @@
 import { registerPlugin } from '@capacitor/core';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-let browserClient: SupabaseClient | null = null;
+const browserClients = new Map<string, SupabaseClient>();
 
 type NativeStoragePlugin = {
   get(options: { key: string }): Promise<{ value: string | null }>;
@@ -92,23 +92,45 @@ function createBrowserStorage(): SupabaseStorageAdapter | undefined {
   };
 }
 
-export function createBrowserSupabaseClient() {
-  if (browserClient) return browserClient;
+function resolveStorageKey() {
+  if (typeof window === 'undefined') {
+    return 'amerymed.auth';
+  }
 
-  browserClient = createFreshBrowserSupabaseClient();
-  return browserClient;
+  const path = window.location.pathname || '';
+
+  if (path.startsWith('/admin')) {
+    return 'amerymed.auth.admin';
+  }
+
+  if (path.startsWith('/client')) {
+    return 'amerymed.auth.client';
+  }
+
+  return 'amerymed.auth';
+}
+
+export function createBrowserSupabaseClient() {
+  const storageKey = resolveStorageKey();
+  const cached = browserClients.get(storageKey);
+  if (cached) return cached;
+
+  const client = createFreshBrowserSupabaseClient();
+  browserClients.set(storageKey, client);
+  return client;
 }
 
 export function createFreshBrowserSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const storageKey = resolveStorageKey();
 
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: 'amerymed.auth',
+      storageKey,
       storage: createBrowserStorage(),
     },
   });
