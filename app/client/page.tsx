@@ -205,6 +205,32 @@ export default function ClientPage() {
     ? `Review uploads for ${personalizedDestination}, send new billing documents, and keep every file tied to the right patient reference and clinic workflow.`
     : 'Submit billing packets, review previous uploads, and keep every document tied to the right clinic and patient reference.';
 
+  const loadUploadHistory = useCallback(
+    async (targetClientId: string) => {
+      setLoadingStep('Loading your upload history...');
+      const { data: uploads, error: uploadsError } = await supabase
+        .from('uploads')
+        .select(
+          'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
+        )
+        .eq('client_id', targetClientId)
+        .order('created_at', { ascending: false })
+        .then((result) => withTimeout(Promise.resolve(result), 'loading your upload history'));
+
+      if (uploadsError) {
+        console.log('[client-page] uploads error', uploadsError.message);
+        setHistory([]);
+        setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
+        return false;
+      }
+
+      setHistory(uploads || []);
+      setHistoryMessage('');
+      return true;
+    },
+    [supabase]
+  );
+
   const loadProfileAndHistory = useCallback(async (access: ClientAccess) => {
     console.log('[client-page] load started for', access.userId);
     setPortalState('checking');
@@ -287,27 +313,13 @@ export default function ClientPage() {
         }
       })();
 
-      setLoadingStep('Loading your upload history...');
-      const { data: uploads, error: uploadsError } = await supabase
-        .from('uploads')
-        .select(
-          'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
-        )
-        .eq('client_id', access.clientId)
-        .order('created_at', { ascending: false })
-        .then((result) => withTimeout(Promise.resolve(result), 'loading your upload history'));
-
-      if (uploadsError) {
-        console.log('[client-page] uploads error', uploadsError.message);
-        setHistory([]);
-        setHistoryMessage(`Failed to load upload history: ${uploadsError.message}`);
+      const uploadsLoaded = await loadUploadHistory(access.clientId);
+      if (!uploadsLoaded) {
         setPortalState('ready');
         return;
       }
 
       console.log('[client-page] client page ready');
-      setHistory(uploads || []);
-      setHistoryMessage('');
       setPortalState('ready');
     } catch (error) {
       const message = getErrorMessage(error);
@@ -318,7 +330,7 @@ export default function ClientPage() {
       setPortalLoadError(`The client portal hit a loading error: ${message}`);
       setPortalState('blocked');
     }
-  }, [supabase]);
+  }, [loadUploadHistory, supabase]);
 
   useEffect(() => {
     void (async () => {
@@ -366,6 +378,30 @@ export default function ClientPage() {
       });
     })();
   }, [loadProfileAndHistory, supabase]);
+
+  useEffect(() => {
+    if (!authorized || !clientId) return;
+
+    const channel = supabase
+      .channel(`client-uploads:${clientId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'uploads',
+          filter: `client_id=eq.${clientId}`,
+        },
+        () => {
+          void loadUploadHistory(clientId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [authorized, clientId, loadUploadHistory, supabase]);
 
   async function handleLogout() {
     await supabase.auth.signOut();

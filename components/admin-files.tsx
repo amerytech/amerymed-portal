@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
 import styles from '@/components/admin-dashboard.module.css';
 import fileStyles from '@/components/admin-files.module.css';
@@ -66,6 +66,24 @@ export default function AdminFiles() {
   const [editingNotesValue, setEditingNotesValue] = useState('');
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null);
 
+  const loadFiles = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('uploads')
+      .select(
+        'id, file_name, file_path, file_size, file_type, status, created_at, clinic_name, category, notes, patient_reference'
+      )
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      setMessage('Failed to load uploads: ' + error.message);
+      return;
+    }
+
+    setFiles(data || []);
+    setMessage('');
+    setSelectedIds([]);
+  }, [supabase]);
+
   async function writeAuditLog(
     action: string,
     file: { id?: string; file_name?: string },
@@ -90,24 +108,30 @@ export default function AdminFiles() {
   }
 
   useEffect(() => {
-    void (async () => {
-      const { data, error } = await supabase
-        .from('uploads')
-        .select(
-          'id, file_name, file_path, file_size, file_type, status, created_at, clinic_name, category, notes, patient_reference'
-        )
-        .order('created_at', { ascending: false });
+    const initialLoadId = window.setTimeout(() => {
+      void loadFiles();
+    }, 0);
 
-      if (error) {
-        setMessage('Failed to load uploads: ' + error.message);
-        return;
-      }
+    const channel = supabase
+      .channel('admin-uploads')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'uploads',
+        },
+        () => {
+          void loadFiles();
+        }
+      )
+      .subscribe();
 
-      setFiles(data || []);
-      setMessage('');
-      setSelectedIds([]);
-    })();
-  }, [supabase]);
+    return () => {
+      window.clearTimeout(initialLoadId);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadFiles, supabase]);
 
   useEffect(() => {
     void (async () => {
