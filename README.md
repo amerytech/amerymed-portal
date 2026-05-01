@@ -67,3 +67,4 @@ For full architecture, database, deployment, and enhancement guidance, use:
 - [Mobile QA Checklist](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_QA_CHECKLIST.md)
 - [Mobile Store Packaging](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_STORE_PACKAGING.md)
 - [Mobile Store Submission Starter Pack](/Users/amerytech/Downloads/amerymed-web/docs/MOBILE_STORE_SUBMISSION_STARTER_PACK.md)
+
