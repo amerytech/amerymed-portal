@@ -15,7 +15,7 @@ const variants = {
   admin: {
     appId: 'com.amerytech.amerymedadmin',
     appName: 'AmeryMed Admin',
-    serverUrl: 'https://amerymed-portal.vercel.app/admin/login',
+    serverUrl: 'https://amerymed-portal.vercel.app/admin/app-login',
     xcodeDisplayName: 'AmeryMed Admin',
     appStoreRole: 'Admin',
     generatedIosConfigPath: 'ios/AdminApp/App/capacitor.config.json',
