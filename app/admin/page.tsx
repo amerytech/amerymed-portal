@@ -1,14 +1,14 @@
 'use client';
-
-import { useEffect, useState } from 'react';
-import { createBrowserSupabaseClient } from '@/lib/supabase-browser';
+import { useEffect, useMemo, useState } from 'react';
+import { createFreshBrowserSupabaseClient } from '@/lib/supabase-browser';
 import AdminFiles from '@/components/admin-files';
 import AdminAuditLog from '@/components/admin-audit-log';
 import { AdminPortalChat } from '@/components/portal-chat';
 import styles from '@/components/admin-dashboard.module.css';
 
 export default function AdminPage() {
-  const supabase = createBrowserSupabaseClient();
+  const supabase = useMemo(() => createFreshBrowserSupabaseClient(), []);
+
 
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -24,18 +24,19 @@ export default function AdminPage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+      
+      const resolvedUser = session?.user ?? (await supabase.auth.getUser()).data.user ?? null;
 
-      if (!session?.user) {
+      if (!resolvedUser) {
         window.location.href = '/admin/login';
         return;
       }
-
-      setUserEmail(session.user.email || '');
-
+      setUserEmail(resolvedUser.email || '');
+      
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', session.user.id)
+        .eq('id', resolvedUser.id)
         .single();
 
       if (error || !profile || profile.role !== 'admin') {
