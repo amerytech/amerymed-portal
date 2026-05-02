@@ -72,6 +72,22 @@ final class AdminLoginViewController: UIViewController, UITextFieldDelegate {
         stack.layoutMargins = UIEdgeInsets(top: 24, left: 20, bottom: 24, right: 20)
         stack.isLayoutMarginsRelativeArrangement = true
 
+        let logoView = UIImageView(image: UIImage(named: "AMedLogo"))
+        logoView.contentMode = .scaleAspectFit
+        logoView.backgroundColor = .white
+        logoView.layer.cornerRadius = 18
+        logoView.clipsToBounds = true
+        logoView.layer.borderWidth = 1
+        logoView.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
+        logoView.heightAnchor.constraint(equalToConstant: 82).isActive = true
+        logoView.widthAnchor.constraint(equalToConstant: 86).isActive = true
+
+        let logoRow = UIStackView(arrangedSubviews: [logoView, UIView()])
+        logoRow.axis = .horizontal
+        logoRow.alignment = .center
+        logoRow.spacing = 12
+
+        stack.addArrangedSubview(logoRow)
         stack.addArrangedSubview(makeLabel(text: "INTERNAL OPERATIONS", font: .systemFont(ofSize: 13, weight: .semibold), color: UIColor.white.withAlphaComponent(0.86)))
         stack.addArrangedSubview(makeLabel(text: "Review intake, triage uploads, and keep billing work moving.", font: .systemFont(ofSize: 30, weight: .bold), color: .white))
         stack.addArrangedSubview(makeLabel(text: "Use your authorized staff account to review client submissions, update processing status, preview documents, and track operational activity from a native admin workspace.", font: .systemFont(ofSize: 16, weight: .regular), color: UIColor.white.withAlphaComponent(0.92)))

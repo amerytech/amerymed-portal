@@ -17,6 +17,7 @@ final class AdminDashboardViewController: UIViewController {
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
     private var previewFileURL: URL?
+    private let startsInHistory: Bool
 
     private var filteredUploads: [AdminUploadRecord] {
         dashboard.uploads.filter { upload in
@@ -36,8 +37,9 @@ final class AdminDashboardViewController: UIViewController {
         }
     }
 
-    init(dashboard: AdminDashboard) {
+    init(dashboard: AdminDashboard, startsInHistory: Bool = false) {
         self.dashboard = dashboard
+        self.startsInHistory = startsInHistory
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -47,12 +49,17 @@ final class AdminDashboardViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Admin"
+        title = startsInHistory ? "Upload History" : "Admin"
         view.backgroundColor = pageBackground
         navigationItem.largeTitleDisplayMode = .never
         configureNavigation()
         configureLayout()
         render()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refreshDashboard(silent: true)
     }
 
     private func configureNavigation() {
@@ -102,6 +109,13 @@ final class AdminDashboardViewController: UIViewController {
         contentStack.addArrangedSubview(makeLogoHeader())
         contentStack.addArrangedSubview(makeHeroCard())
         contentStack.addArrangedSubview(makeStatsCard())
+
+        if !startsInHistory {
+            contentStack.addArrangedSubview(makeLandingActionsCard())
+            contentStack.addArrangedSubview(makeInfoCard(title: "Native Admin Workspace", body: "Use Upload History to review submitted files, update notes, change status, delete stale records, and export the current operational view."))
+            return
+        }
+
         contentStack.addArrangedSubview(makeSearchCard())
         contentStack.addArrangedSubview(makeBulkActionsCard())
         contentStack.addArrangedSubview(makeSectionHeader())
@@ -151,6 +165,17 @@ final class AdminDashboardViewController: UIViewController {
         stack.addArrangedSubview(makeLabel(text: "ADMIN OPERATIONS", font: .systemFont(ofSize: 13, weight: .bold), color: UIColor.white.withAlphaComponent(0.84)))
         stack.addArrangedSubview(makeLabel(text: "Review intake, update notes, export views, and move uploads through billing action.", font: .systemFont(ofSize: 25, weight: .bold), color: .white))
         stack.addArrangedSubview(makeLabel(text: "Signed in as \(dashboard.userEmail). Search by clinic, patient reference, file name, notes, or category without leaving the native app.", font: .systemFont(ofSize: 15, weight: .regular), color: UIColor.white.withAlphaComponent(0.9)))
+        pin(stack, to: card)
+        return card
+    }
+
+    private func makeLandingActionsCard() -> UIView {
+        let card = makeCard()
+        let stack = makeVerticalStack(margins: UIEdgeInsets(top: 18, left: 18, bottom: 18, right: 18), spacing: 12)
+        stack.addArrangedSubview(makeLabel(text: "Admin Actions", font: .systemFont(ofSize: 22, weight: .bold), color: primaryBlue))
+        stack.addArrangedSubview(makeLabel(text: "Open the native upload history page to search, review, edit notes, update status, delete records, bulk delete, or export CSV.", font: .systemFont(ofSize: 15, weight: .regular), color: secondaryText))
+        stack.addArrangedSubview(makePlainButton(title: "Open Upload History", color: accentTeal, action: #selector(handleOpenUploadHistory)))
+        stack.addArrangedSubview(makePlainButton(title: "Refresh Dashboard", color: primaryBlue, action: #selector(handleRefresh)))
         pin(stack, to: card)
         return card
     }
@@ -305,6 +330,10 @@ final class AdminDashboardViewController: UIViewController {
 
     @objc private func handleRefresh() {
         refreshDashboard()
+    }
+
+    @objc private func handleOpenUploadHistory() {
+        navigationController?.pushViewController(AdminDashboardViewController(dashboard: dashboard, startsInHistory: true), animated: true)
     }
 
     @objc private func handleSignOut() {
@@ -465,7 +494,7 @@ final class AdminDashboardViewController: UIViewController {
         }
     }
 
-    private func refreshDashboard() {
+    private func refreshDashboard(silent: Bool = false) {
         guard let session = AdminSessionStore.load() else {
             navigationController?.setViewControllers([AdminLoginViewController()], animated: true)
             return
