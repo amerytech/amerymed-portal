@@ -95,6 +95,27 @@ final class ClientUploadHistoryViewController: UIViewController {
         return normalized.capitalized
     }
 
+    private func categoryText(for category: String?) -> String {
+        switch category {
+        case "EOB":
+            return "EOB"
+        case "ERA":
+            return "ERA"
+        case "FaceSheet":
+            return "Face Sheet"
+        case "InsuranceCard":
+            return "Insurance ID"
+        case "Claims":
+            return "Claims"
+        case "Other":
+            return "Other Documents"
+        case let value? where !value.isEmpty:
+            return value
+        default:
+            return "Unknown"
+        }
+    }
+
     private func formattedDate(_ value: String) -> String {
         let formatter = ISO8601DateFormatter()
         guard let date = formatter.date(from: value) else { return value }
@@ -126,7 +147,7 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         content.secondaryTextProperties.numberOfLines = 0
 
         let metadata = [
-            upload.category?.isEmpty == false ? "Category: \(upload.category!)" : nil,
+            upload.category?.isEmpty == false ? "Category: \(categoryText(for: upload.category))" : nil,
             upload.patientReference?.isEmpty == false ? "Patient: \(upload.patientReference!)" : nil,
             "Status: \(statusText(for: upload.status))",
             "Size: \(formattedSize(upload.fileSize))",
