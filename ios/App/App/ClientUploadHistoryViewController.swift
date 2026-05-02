@@ -165,6 +165,47 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         metadataLabel.numberOfLines = 0
         metadataLabel.text = metadata
 
+        var contentViews: [UIView] = [titleLabel, metadataLabel]
+
+        if let notes = upload.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !notes.isEmpty
+        {
+            let notesContainer = UIView()
+            notesContainer.backgroundColor = UIColor(red: 248 / 255, green: 250 / 255, blue: 253 / 255, alpha: 1)
+            notesContainer.layer.cornerRadius = 14
+
+            let notesStack = UIStackView()
+            notesStack.axis = .vertical
+            notesStack.spacing = 6
+            notesStack.translatesAutoresizingMaskIntoConstraints = false
+            notesStack.layoutMargins = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+            notesStack.isLayoutMarginsRelativeArrangement = true
+
+            let notesTitle = UILabel()
+            notesTitle.text = "ADMIN NOTES"
+            notesTitle.font = .systemFont(ofSize: 12, weight: .bold)
+            notesTitle.textColor = secondaryText
+
+            let notesLabel = UILabel()
+            notesLabel.text = notes
+            notesLabel.font = .systemFont(ofSize: 14, weight: .regular)
+            notesLabel.textColor = primaryBlue
+            notesLabel.numberOfLines = 0
+
+            notesStack.addArrangedSubview(notesTitle)
+            notesStack.addArrangedSubview(notesLabel)
+            notesContainer.addSubview(notesStack)
+
+            NSLayoutConstraint.activate([
+                notesStack.topAnchor.constraint(equalTo: notesContainer.topAnchor),
+                notesStack.leadingAnchor.constraint(equalTo: notesContainer.leadingAnchor),
+                notesStack.trailingAnchor.constraint(equalTo: notesContainer.trailingAnchor),
+                notesStack.bottomAnchor.constraint(equalTo: notesContainer.bottomAnchor),
+            ])
+
+            contentViews.append(notesContainer)
+        }
+
         let reviewButton = UIButton(type: .system)
         reviewButton.setTitle("Review", for: .normal)
         reviewButton.setTitleColor(primaryBlue, for: .normal)
@@ -204,8 +245,9 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         actionStack.axis = .horizontal
         actionStack.spacing = 10
         actionStack.distribution = .fillEqually
+        contentViews.append(actionStack)
 
-        let stack = UIStackView(arrangedSubviews: [titleLabel, metadataLabel, actionStack])
+        let stack = UIStackView(arrangedSubviews: contentViews)
         stack.axis = .vertical
         stack.spacing = 10
 
