@@ -90,13 +90,13 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
             color: UIColor.white.withAlphaComponent(0.86)
         )
         let title = makeLabel(
-            text: "Sign in natively, then review document status from an app-first dashboard.",
+            text: "Submit billing documents securely from your phone.",
             font: .systemFont(ofSize: 30, weight: .bold),
             color: .white
         )
 
         let body = makeLabel(
-            text: "This version keeps sign-in, status snapshots, and account context inside the iPhone app before you open any extended portal tools.",
+            text: "Upload, access, review, and delete medical billing uploads such as EOBs, claims, face sheets, insurance cards, and supporting billing records from your workspace as a one-stop solution for your office admin.",
             font: .systemFont(ofSize: 16, weight: .regular),
             color: UIColor.white.withAlphaComponent(0.92)
         )
@@ -148,10 +148,9 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
             color: secondaryText
         )
 
-        configureField(emailField, placeholder: "qa.client@amerytechnet.com", keyboard: .emailAddress, secure: false)
+        configureField(emailField, placeholder: "Enter your email", keyboard: .emailAddress, secure: false)
         configureField(passwordField, placeholder: "Enter your password", keyboard: .default, secure: true)
 
-        emailField.text = "qa.client@amerytechnet.com"
         emailField.returnKeyType = .next
         passwordField.returnKeyType = .go
         emailField.delegate = self
@@ -216,7 +215,7 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
         )
 
         let body = makeLabel(
-            text: "After sign-in, the app loads your native dashboard summary first: total uploads, current status counts, clinic details, and provider information. We can layer native upload and messaging next without dropping you into browser-style chrome.",
+            text: "After signing in, you can review document status, submit new files, confirm clinic details, and track your upload history for patient references and billing workflows.",
             font: .systemFont(ofSize: 15, weight: .regular),
             color: secondaryText
         )

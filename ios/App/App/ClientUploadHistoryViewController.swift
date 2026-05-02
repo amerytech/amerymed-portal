@@ -97,6 +97,10 @@ final class ClientUploadHistoryViewController: UIViewController {
         return normalized.capitalized
     }
 
+    private func isProcessedStatus(_ status: String?) -> Bool {
+        (status ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "processed"
+    }
+
     private func categoryText(for category: String?) -> String {
         switch category {
         case "EOB":
@@ -182,7 +186,21 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         deleteButton.tag = indexPath.row
         deleteButton.addTarget(self, action: #selector(handleDeleteUpload(_:)), for: .touchUpInside)
 
-        let actionStack = UIStackView(arrangedSubviews: [reviewButton, deleteButton])
+        let actionButtons: [UIView]
+        if isProcessedStatus(upload.status) {
+            let processedButton = UIButton(type: .system)
+            processedButton.setTitle("Processed", for: .normal)
+            processedButton.setTitleColor(UIColor(red: 25 / 255, green: 135 / 255, blue: 84 / 255, alpha: 1), for: .disabled)
+            processedButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+            processedButton.backgroundColor = UIColor(red: 226 / 255, green: 246 / 255, blue: 236 / 255, alpha: 1)
+            processedButton.layer.cornerRadius = 12
+            processedButton.isEnabled = false
+            actionButtons = [reviewButton, deleteButton, processedButton]
+        } else {
+            actionButtons = [reviewButton, deleteButton]
+        }
+
+        let actionStack = UIStackView(arrangedSubviews: actionButtons)
         actionStack.axis = .horizontal
         actionStack.spacing = 10
         actionStack.distribution = .fillEqually
