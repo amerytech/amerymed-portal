@@ -31,8 +31,7 @@ async function isDuplicateUpload(params: {
     .select('id, file_name, file_path, file_size, file_type, category, patient_reference')
     .eq('client_id', clientId)
     .eq('category', category)
-    .eq('patient_reference', patientReference)
-    .eq('file_size', fileSize);
+    .eq('patient_reference', patientReference);
 
   if (error) {
     throw new Error(error.message);
@@ -45,15 +44,34 @@ async function isDuplicateUpload(params: {
   const incomingHash = createHash('sha256').update(fileBuffer).digest('hex');
   const normalizedIncomingName = normalizeText(fileName);
   const normalizedIncomingType = normalizeText(fileType);
+  const incomingFamily = normalizedIncomingType.split('/')[0] || normalizedIncomingType;
 
   for (const candidate of candidates) {
     const normalizedExistingName = normalizeText(candidate.file_name);
     const normalizedExistingType = normalizeText(candidate.file_type);
+    const existingFamily = normalizedExistingType.split('/')[0] || normalizedExistingType;
     const sameMetadata =
       normalizedExistingName === normalizedIncomingName &&
       normalizedExistingType === normalizedIncomingType;
 
     if (sameMetadata) {
+      return true;
+    }
+
+    if (
+      typeof candidate.file_size === 'number' &&
+      candidate.file_size === fileSize &&
+      normalizedExistingType === normalizedIncomingType
+    ) {
+      return true;
+    }
+
+    if (
+      normalizeText(category) === 'insurancecard' &&
+      existingFamily === incomingFamily &&
+      typeof candidate.file_size === 'number' &&
+      Math.abs(candidate.file_size - fileSize) <= 16384
+    ) {
       return true;
     }
 

@@ -100,6 +100,7 @@ final class ClientUploadComposerViewController: UIViewController {
     private let clearFilesButton = UIButton(type: .system)
     private let addPhotosButton = UIButton(type: .system)
     private let addFilesButton = UIButton(type: .system)
+    private let logoImageView = UIImageView(image: UIImage(named: "Splash"))
 
     private let mobileCameraInputAccessory = UIToolbar()
     private let categoryPicker = UIPickerView()
@@ -162,12 +163,16 @@ final class ClientUploadComposerViewController: UIViewController {
                 fileType: (item.fileType ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             )
             let sameFileSignature = selectedFileSignatures.contains(existingSignature)
+            let sameFileName = selectedFileSignatures.contains { $0.fileName == existingSignature.fileName }
+            let sameMimeAndSize = selectedFileSignatures.contains {
+                $0.fileType == existingSignature.fileType && $0.fileSize == existingSignature.fileSize
+            }
             let sameCategory = (item.category ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCategory
             let samePatientReference = (item.patientReference ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased() == normalizedPatientReference
 
-            return sameFileSignature && sameCategory && samePatientReference
+            return (sameFileSignature || sameFileName || sameMimeAndSize) && sameCategory && samePatientReference
         }
     }
 
@@ -244,6 +249,14 @@ final class ClientUploadComposerViewController: UIViewController {
         stack.layoutMargins = UIEdgeInsets(top: 24, left: 20, bottom: 24, right: 20)
         stack.isLayoutMarginsRelativeArrangement = true
 
+        logoImageView.translatesAutoresizingMaskIntoConstraints = false
+        logoImageView.contentMode = .scaleAspectFit
+        logoImageView.clipsToBounds = true
+        logoImageView.layer.cornerRadius = 16
+        logoImageView.layer.borderWidth = 1
+        logoImageView.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
+        logoImageView.heightAnchor.constraint(equalToConstant: 72).isActive = true
+        stack.addArrangedSubview(logoImageView)
         stack.addArrangedSubview(makeLabel(text: "NATIVE UPLOAD", font: .systemFont(ofSize: 13, weight: .semibold), color: UIColor.white.withAlphaComponent(0.86)))
         stack.addArrangedSubview(makeLabel(text: "Send the same billing documents you use on the web portal.", font: .systemFont(ofSize: 30, weight: .bold), color: .white))
         stack.addArrangedSubview(makeLabel(text: "Choose the right document type, add the patient reference, and capture insurance front/back cards or multi-page packets directly inside the app.", font: .systemFont(ofSize: 16, weight: .regular), color: UIColor.white.withAlphaComponent(0.92)))
@@ -938,9 +951,13 @@ extension ClientUploadComposerViewController: PHPickerViewControllerDelegate {
 
             for (index, result) in results.enumerated() {
                 if let data = try? await result.itemProvider.loadImageData() {
+                    let stableNameRoot = result.assetIdentifier?
+                        .replacingOccurrences(of: "/", with: "-")
+                        .replacingOccurrences(of: ":", with: "-")
+                        .lowercased() ?? "photo-\(Int(Date().timeIntervalSince1970))-\(index + self.selectedFiles.count)"
                     loadedFiles.append(
                         ClientUploadDraft(
-                            fileName: "photo-\(Int(Date().timeIntervalSince1970))-\(index + self.selectedFiles.count).jpg",
+                            fileName: "\(stableNameRoot).jpg",
                             mimeType: "image/jpeg",
                             data: data
                         )

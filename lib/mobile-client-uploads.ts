@@ -3,6 +3,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase-admin';
 export type MobileClientUploadRecord = {
   id: string;
   fileName: string;
+  filePath: string | null;
   fileSize: number | null;
   fileType: string | null;
   clinicName: string | null;
@@ -95,7 +96,7 @@ export async function buildMobileClientUploadHistory(
   const { data: uploads, error } = await supabase
     .from('uploads')
     .select(
-      'id, file_name, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
+      'id, file_name, file_path, file_size, file_type, clinic_name, category, patient_reference, notes, status, created_at'
     )
     .eq('client_id', clientId)
     .order('created_at', { ascending: false });
@@ -107,6 +108,7 @@ export async function buildMobileClientUploadHistory(
   return (uploads || []).map((upload) => ({
     id: normalizeText(upload.id),
     fileName: normalizeText(upload.file_name),
+    filePath: normalizeText(upload.file_path) || null,
     fileSize: typeof upload.file_size === 'number' ? upload.file_size : null,
     fileType: normalizeText(upload.file_type) || null,
     clinicName: normalizeText(upload.clinic_name) || null,
@@ -116,4 +118,44 @@ export async function buildMobileClientUploadHistory(
     status: normalizeText(upload.status) || null,
     createdAt: normalizeText(upload.created_at),
   }));
+}
+
+export async function deleteMobileClientUpload(params: {
+  clientId: string;
+  uploadId: string;
+}) {
+  const supabase = createAdminSupabaseClient();
+  const normalizedUploadId = normalizeText(params.uploadId);
+
+  const { data: upload, error: fetchError } = await supabase
+    .from('uploads')
+    .select('id, client_id, file_path')
+    .eq('id', normalizedUploadId)
+    .eq('client_id', params.clientId)
+    .single();
+
+  if (fetchError || !upload) {
+    throw new Error(fetchError?.message || 'Upload could not be found.');
+  }
+
+  const filePath = normalizeText(upload.file_path);
+  if (filePath) {
+    const { error: storageError } = await supabase.storage
+      .from('client-documents')
+      .remove([filePath]);
+
+    if (storageError) {
+      throw new Error(storageError.message);
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from('uploads')
+    .delete()
+    .eq('id', normalizedUploadId)
+    .eq('client_id', params.clientId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
 }

@@ -18,6 +18,7 @@ struct ClientDashboardSummary: Codable {
 struct ClientUploadRecord: Decodable {
     let id: String
     let fileName: String
+    let filePath: String?
     let fileSize: Int?
     let fileType: String?
     let clinicName: String?
@@ -106,6 +107,19 @@ final class ClientAPI {
 
         let envelope = try await send(request: request, decode: HistoryEnvelope.self)
         return envelope.uploads
+    }
+
+    func deleteUpload(accessToken: String, uploadId: String) async throws {
+        let requestURL = baseURL.appendingPathComponent("api/mobile/client/history")
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "accessToken": accessToken,
+            "uploadId": uploadId,
+        ])
+
+        _ = try await send(request: request, decode: EmptyResponse.self)
     }
 
     func uploadDocuments(

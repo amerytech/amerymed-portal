@@ -13,6 +13,7 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
     private let feedbackLabel = UILabel()
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let scrollView = UIScrollView()
+    private let brandImageView = UIImageView(image: UIImage(named: "Splash"))
     private var keyboardObservers: [NSObjectProtocol] = []
 
     override func viewDidLoad() {
@@ -74,6 +75,14 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
         stack.layoutMargins = UIEdgeInsets(top: 24, left: 20, bottom: 24, right: 20)
         stack.isLayoutMarginsRelativeArrangement = true
 
+        brandImageView.translatesAutoresizingMaskIntoConstraints = false
+        brandImageView.contentMode = .scaleAspectFit
+        brandImageView.clipsToBounds = true
+        brandImageView.layer.cornerRadius = 16
+        brandImageView.layer.borderWidth = 1
+        brandImageView.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
+        brandImageView.heightAnchor.constraint(equalToConstant: 72).isActive = true
+
         let eyebrow = makeLabel(
             text: "CLIENT ACCESS",
             font: .systemFont(ofSize: 13, weight: .semibold),
@@ -91,6 +100,7 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
             color: UIColor.white.withAlphaComponent(0.92)
         )
 
+        stack.addArrangedSubview(brandImageView)
         stack.addArrangedSubview(eyebrow)
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(body)

@@ -158,8 +158,56 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
 
         content.secondaryText = metadata
         cell.contentConfiguration = content
+        let deleteButton = UIButton(type: .system)
+        deleteButton.setTitle("Delete", for: .normal)
+        deleteButton.setTitleColor(.systemRed, for: .normal)
+        deleteButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        deleteButton.tag = indexPath.row
+        deleteButton.addTarget(self, action: #selector(handleDeleteUpload(_:)), for: .touchUpInside)
+        cell.accessoryView = deleteButton
         cell.backgroundConfiguration = UIBackgroundConfiguration.clear()
         cell.selectionStyle = .none
         return cell
+    }
+}
+
+extension ClientUploadHistoryViewController {
+    @objc private func handleDeleteUpload(_ sender: UIButton) {
+        guard sender.tag < uploads.count else { return }
+        let upload = uploads[sender.tag]
+
+        let alert = UIAlertController(
+            title: "Delete Upload",
+            message: "Remove \(upload.fileName) from your upload history?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { [weak self] _ in
+            self?.confirmDelete(upload: upload)
+        })
+        present(alert, animated: true)
+    }
+
+    private func confirmDelete(upload: ClientUploadRecord) {
+        guard let session = ClientSessionStore.load() else {
+            navigationController?.setViewControllers([ClientLoginViewController()], animated: true)
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await ClientAPI.shared.deleteUpload(accessToken: session.accessToken, uploadId: upload.id)
+                await MainActor.run {
+                    self.uploads.removeAll { $0.id == upload.id }
+                    self.emptyLabel.isHidden = !self.uploads.isEmpty
+                    self.tableView.reloadData()
+                }
+            } catch {
+                await MainActor.run {
+                    self.showAlert(title: "Unable to Delete", message: error.localizedDescription)
+                }
+            }
+        }
     }
 }
