@@ -95,6 +95,7 @@ final class ClientUploadComposerViewController: UIViewController {
     private let selectedFilesListStack = UIStackView()
     private let checklistStack = UIStackView()
     private let statusLabel = UILabel()
+    private let duplicateWarningLabel = UILabel()
     private let submitButton = UIButton(type: .system)
     private let clearFilesButton = UIButton(type: .system)
     private let addPhotosButton = UIButton(type: .system)
@@ -135,6 +136,33 @@ final class ClientUploadComposerViewController: UIViewController {
     private var selectedFiles: [ClientUploadDraft] = [] {
         didSet { renderSelectedFiles() }
     }
+    private var existingUploads: [ClientUploadRecord] = [] {
+        didSet { renderSelectedFiles() }
+    }
+
+    private var duplicateMatches: [ClientUploadRecord] {
+        guard !existingUploads.isEmpty else { return [] }
+
+        let normalizedCategory = selectedCategory.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedPatientReference = patientReferenceField.text?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+        let normalizedFileNames = selectedFiles
+            .map { normalizedFileName($0.fileName) }
+            .filter { !$0.isEmpty }
+
+        return existingUploads.filter { item in
+            let sameFileName =
+                !normalizedFileNames.isEmpty &&
+                normalizedFileNames.contains(normalizedFileName(item.fileName))
+            let sameCategory = (item.category ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCategory
+            let samePatientReference = (item.patientReference ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() == normalizedPatientReference
+
+            return sameFileName || (!normalizedPatientReference.isEmpty && sameCategory && samePatientReference)
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -147,6 +175,9 @@ final class ClientUploadComposerViewController: UIViewController {
         renderPresetState()
         renderChecklist()
         renderSelectedFiles()
+        Task { [weak self] in
+            await self?.loadExistingUploads()
+        }
     }
 
     deinit {
@@ -187,6 +218,11 @@ final class ClientUploadComposerViewController: UIViewController {
         statusLabel.font = .systemFont(ofSize: 14, weight: .regular)
         statusLabel.numberOfLines = 0
         statusLabel.isHidden = true
+
+        duplicateWarningLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        duplicateWarningLabel.numberOfLines = 0
+        duplicateWarningLabel.textColor = UIColor(red: 176 / 255, green: 48 / 255, blue: 48 / 255, alpha: 1)
+        duplicateWarningLabel.isHidden = true
     }
 
     private func makeHeroCard() -> UIView {
@@ -404,6 +440,7 @@ final class ClientUploadComposerViewController: UIViewController {
         selectedFilesListStack.axis = .vertical
         selectedFilesListStack.spacing = 10
         filesStack.addArrangedSubview(selectedFilesListStack)
+        filesStack.addArrangedSubview(duplicateWarningLabel)
 
         configureActionButton(submitButton, title: "Upload Document", background: accentTeal, action: #selector(handleSubmit))
         filesStack.addArrangedSubview(submitButton)
@@ -585,6 +622,8 @@ final class ClientUploadComposerViewController: UIViewController {
         }
 
         clearFilesButton.isHidden = selectedFiles.isEmpty
+        duplicateWarningLabel.isHidden = true
+        duplicateWarningLabel.text = nil
 
         if selectedFiles.isEmpty {
             selectedFilesSummaryLabel.text = "No files chosen yet."
@@ -640,6 +679,16 @@ final class ClientUploadComposerViewController: UIViewController {
             ])
 
             selectedFilesListStack.addArrangedSubview(row)
+        }
+
+        if !duplicateMatches.isEmpty {
+            let fileList = duplicateMatches
+                .prefix(3)
+                .map(\.fileName)
+                .joined(separator: ", ")
+            duplicateWarningLabel.text =
+                "Possible duplicate detected. Matching upload(s): \(fileList). Remove the duplicate or change the patient reference before submitting."
+            duplicateWarningLabel.isHidden = false
         }
     }
 
@@ -698,6 +747,14 @@ final class ClientUploadComposerViewController: UIViewController {
             return
         }
 
+        if !duplicateMatches.isEmpty {
+            showStatus(
+                "A similar upload already exists. Remove the duplicate file or update the patient reference before submitting.",
+                isError: true
+            )
+            return
+        }
+
         setSubmitting(true)
         showStatus("", isError: false)
 
@@ -728,6 +785,9 @@ final class ClientUploadComposerViewController: UIViewController {
                     self.selectedCategory = .eob
                     self.selectedPreset = .general
                     self.view.endEditing(true)
+                    Task { [weak self] in
+                        await self?.loadExistingUploads()
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -744,6 +804,17 @@ final class ClientUploadComposerViewController: UIViewController {
         submitButton.setTitle(submitting ? "Uploading..." : "Upload Document", for: .normal)
     }
 
+    @MainActor
+    private func loadExistingUploads() async {
+        guard let session = ClientSessionStore.load() else { return }
+
+        do {
+            existingUploads = try await ClientAPI.shared.fetchUploadHistory(accessToken: session.accessToken)
+        } catch {
+            existingUploads = []
+        }
+    }
+
     private func showStatus(_ message: String, isError: Bool) {
         statusLabel.text = message
         statusLabel.textColor = isError ? UIColor(red: 176 / 255, green: 48 / 255, blue: 48 / 255, alpha: 1) : accentTeal
@@ -754,6 +825,10 @@ final class ClientUploadComposerViewController: UIViewController {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    private func normalizedFileName(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private func makeLabel(text: String, font: UIFont, color: UIColor) -> UILabel {
@@ -777,6 +852,10 @@ extension ClientUploadComposerViewController: UITextFieldDelegate {
         scrollActiveInputIntoView()
     }
 
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        renderSelectedFiles()
+    }
+
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         if textField === patientReferenceField {
             notesView.becomeFirstResponder()
@@ -791,6 +870,10 @@ extension ClientUploadComposerViewController: UITextViewDelegate {
     func textViewDidBeginEditing(_ textView: UITextView) {
         activeInputView = textView
         scrollActiveInputIntoView()
+    }
+
+    func textViewDidEndEditing(_ textView: UITextView) {
+        renderSelectedFiles()
     }
 }
 
@@ -809,6 +892,7 @@ extension ClientUploadComposerViewController: UIPickerViewDataSource, UIPickerVi
 
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
         selectedCategory = ClientUploadCategory.allCases[row]
+        renderSelectedFiles()
     }
 }
 

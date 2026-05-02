@@ -115,6 +115,26 @@ final class ClientAPI {
         notes: String,
         files: [ClientUploadDraft]
     ) async throws {
+        guard !files.isEmpty else { return }
+
+        for file in files {
+            try await uploadSingleDocument(
+                accessToken: accessToken,
+                category: category,
+                patientReference: patientReference,
+                notes: notes,
+                file: file
+            )
+        }
+    }
+
+    private func uploadSingleDocument(
+        accessToken: String,
+        category: String,
+        patientReference: String,
+        notes: String,
+        file: ClientUploadDraft
+    ) async throws {
         let requestURL = baseURL.appendingPathComponent("api/mobile/client/upload")
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: requestURL)
@@ -126,7 +146,7 @@ final class ClientAPI {
             category: category,
             patientReference: patientReference,
             notes: notes,
-            files: files
+            files: [file]
         )
 
         _ = try await send(request: request, decode: EmptyResponse.self)
@@ -142,6 +162,12 @@ final class ClientAPI {
             if !(200 ... 299).contains(httpResponse.statusCode) {
                 if let serverError = try? JSONDecoder().decode(ServerErrorResponse.self, from: data) {
                     throw ClientAPIError.server(message: serverError.error)
+                }
+                if let plainText = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !plainText.isEmpty
+                {
+                    throw ClientAPIError.server(message: plainText)
                 }
                 throw ClientAPIError.invalidResponse
             }
