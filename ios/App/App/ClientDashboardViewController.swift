@@ -14,7 +14,7 @@ final class ClientDashboardViewController: UIViewController {
     private let feedbackLabel = UILabel()
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
-    private let heroLogoView = UIImageView(image: UIImage(named: "Splash"))
+    private let heroLogoView = UIImageView(image: UIImage(named: "AMedLogo"))
 
     init(summary: ClientDashboardSummary) {
         self.summary = summary
@@ -110,6 +110,7 @@ final class ClientDashboardViewController: UIViewController {
         heroLogoView.layer.borderWidth = 1
         heroLogoView.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
         heroLogoView.heightAnchor.constraint(equalToConstant: 72).isActive = true
+        heroLogoView.widthAnchor.constraint(equalToConstant: 76).isActive = true
 
         let eyebrow = makeLabel(
             text: "AMERYMED CLIENT PORTAL",
@@ -127,7 +128,11 @@ final class ClientDashboardViewController: UIViewController {
             color: UIColor.white.withAlphaComponent(0.92)
         )
 
-        stack.addArrangedSubview(heroLogoView)
+        let logoRow = UIStackView(arrangedSubviews: [heroLogoView, UIView()])
+        logoRow.axis = .horizontal
+        logoRow.alignment = .center
+        logoRow.spacing = 12
+        stack.addArrangedSubview(logoRow)
         stack.addArrangedSubview(eyebrow)
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(body)

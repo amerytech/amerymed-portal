@@ -13,7 +13,7 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
     private let feedbackLabel = UILabel()
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let scrollView = UIScrollView()
-    private let brandImageView = UIImageView(image: UIImage(named: "Splash"))
+    private let brandImageView = UIImageView(image: UIImage(named: "AMedLogo"))
     private var keyboardObservers: [NSObjectProtocol] = []
 
     override func viewDidLoad() {
@@ -82,6 +82,7 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
         brandImageView.layer.borderWidth = 1
         brandImageView.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
         brandImageView.heightAnchor.constraint(equalToConstant: 72).isActive = true
+        brandImageView.widthAnchor.constraint(equalToConstant: 76).isActive = true
 
         let eyebrow = makeLabel(
             text: "CLIENT ACCESS",
@@ -100,7 +101,11 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
             color: UIColor.white.withAlphaComponent(0.92)
         )
 
-        stack.addArrangedSubview(brandImageView)
+        let logoRow = UIStackView(arrangedSubviews: [brandImageView, UIView()])
+        logoRow.axis = .horizontal
+        logoRow.alignment = .center
+        logoRow.spacing = 12
+        stack.addArrangedSubview(logoRow)
         stack.addArrangedSubview(eyebrow)
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(body)

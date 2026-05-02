@@ -138,14 +138,6 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "UploadCell", for: indexPath)
         let upload = uploads[indexPath.row]
-
-        var content = UIListContentConfiguration.subtitleCell()
-        content.text = upload.fileName
-        content.textProperties.color = primaryBlue
-        content.textProperties.font = .systemFont(ofSize: 18, weight: .semibold)
-        content.secondaryTextProperties.color = secondaryText
-        content.secondaryTextProperties.numberOfLines = 0
-
         let metadata = [
             upload.category?.isEmpty == false ? "Category: \(categoryText(for: upload.category))" : nil,
             upload.patientReference?.isEmpty == false ? "Patient: \(upload.patientReference!)" : nil,
@@ -155,16 +147,64 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         ]
             .compactMap { $0 }
             .joined(separator: "\n")
+        let titleLabel = UILabel()
+        titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
+        titleLabel.textColor = primaryBlue
+        titleLabel.numberOfLines = 0
+        titleLabel.text = upload.fileName
 
-        content.secondaryText = metadata
-        cell.contentConfiguration = content
+        let metadataLabel = UILabel()
+        metadataLabel.font = .systemFont(ofSize: 14, weight: .regular)
+        metadataLabel.textColor = secondaryText
+        metadataLabel.numberOfLines = 0
+        metadataLabel.text = metadata
+
         let deleteButton = UIButton(type: .system)
-        deleteButton.setTitle("Delete", for: .normal)
-        deleteButton.setTitleColor(.systemRed, for: .normal)
-        deleteButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        deleteButton.setTitle("Delete Upload", for: .normal)
+        deleteButton.setTitleColor(.white, for: .normal)
+        deleteButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        deleteButton.backgroundColor = .systemRed
+        deleteButton.layer.cornerRadius = 12
+        deleteButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+        deleteButton.contentHorizontalAlignment = .center
         deleteButton.tag = indexPath.row
         deleteButton.addTarget(self, action: #selector(handleDeleteUpload(_:)), for: .touchUpInside)
-        cell.accessoryView = deleteButton
+
+        let stack = UIStackView(arrangedSubviews: [titleLabel, metadataLabel, deleteButton])
+        stack.axis = .vertical
+        stack.spacing = 10
+
+        let container = UIView()
+        container.backgroundColor = .white
+        container.layer.cornerRadius = 18
+
+        let inset = UIStackView(arrangedSubviews: [stack])
+        inset.axis = .vertical
+        inset.translatesAutoresizingMaskIntoConstraints = false
+        inset.layoutMargins = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        inset.isLayoutMarginsRelativeArrangement = true
+        container.addSubview(inset)
+
+        NSLayoutConstraint.activate([
+            inset.topAnchor.constraint(equalTo: container.topAnchor),
+            inset.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            inset.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            inset.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            deleteButton.heightAnchor.constraint(equalToConstant: 40),
+        ])
+
+        cell.contentConfiguration = nil
+        cell.accessoryView = nil
+        cell.backgroundView = nil
+        cell.contentView.subviews.forEach { $0.removeFromSuperview() }
+        container.translatesAutoresizingMaskIntoConstraints = false
+        cell.contentView.addSubview(container)
+        NSLayoutConstraint.activate([
+            container.topAnchor.constraint(equalTo: cell.contentView.topAnchor, constant: 6),
+            container.leadingAnchor.constraint(equalTo: cell.contentView.leadingAnchor, constant: 2),
+            container.trailingAnchor.constraint(equalTo: cell.contentView.trailingAnchor, constant: -2),
+            container.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor, constant: -6),
+        ])
         cell.backgroundConfiguration = UIBackgroundConfiguration.clear()
         cell.selectionStyle = .none
         return cell

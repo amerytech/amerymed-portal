@@ -100,7 +100,7 @@ final class ClientUploadComposerViewController: UIViewController {
     private let clearFilesButton = UIButton(type: .system)
     private let addPhotosButton = UIButton(type: .system)
     private let addFilesButton = UIButton(type: .system)
-    private let logoImageView = UIImageView(image: UIImage(named: "Splash"))
+    private let logoImageView = UIImageView(image: UIImage(named: "AMedLogo"))
 
     private let mobileCameraInputAccessory = UIToolbar()
     private let categoryPicker = UIPickerView()
@@ -256,7 +256,12 @@ final class ClientUploadComposerViewController: UIViewController {
         logoImageView.layer.borderWidth = 1
         logoImageView.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
         logoImageView.heightAnchor.constraint(equalToConstant: 72).isActive = true
-        stack.addArrangedSubview(logoImageView)
+        logoImageView.widthAnchor.constraint(equalToConstant: 76).isActive = true
+        let logoRow = UIStackView(arrangedSubviews: [logoImageView, UIView()])
+        logoRow.axis = .horizontal
+        logoRow.alignment = .center
+        logoRow.spacing = 12
+        stack.addArrangedSubview(logoRow)
         stack.addArrangedSubview(makeLabel(text: "NATIVE UPLOAD", font: .systemFont(ofSize: 13, weight: .semibold), color: UIColor.white.withAlphaComponent(0.86)))
         stack.addArrangedSubview(makeLabel(text: "Send the same billing documents you use on the web portal.", font: .systemFont(ofSize: 30, weight: .bold), color: .white))
         stack.addArrangedSubview(makeLabel(text: "Choose the right document type, add the patient reference, and capture insurance front/back cards or multi-page packets directly inside the app.", font: .systemFont(ofSize: 16, weight: .regular), color: UIColor.white.withAlphaComponent(0.92)))
