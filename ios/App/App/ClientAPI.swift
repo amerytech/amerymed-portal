@@ -19,6 +19,7 @@ struct ClientUploadRecord: Decodable {
     let id: String
     let fileName: String
     let filePath: String?
+    let previewUrl: String?
     let fileSize: Int?
     let fileType: String?
     let clinicName: String?
@@ -27,6 +28,22 @@ struct ClientUploadRecord: Decodable {
     let notes: String?
     let status: String?
     let createdAt: String
+}
+
+struct ClientIndustryUpdate: Decodable {
+    let id: String
+    let title: String
+    let topic: String?
+    let sourceName: String?
+    let sourceUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case topic
+        case sourceName = "source_name"
+        case sourceUrl = "source_url"
+    }
 }
 
 struct ClientUploadDraft {
@@ -120,6 +137,43 @@ final class ClientAPI {
         ])
 
         _ = try await send(request: request, decode: EmptyResponse.self)
+    }
+
+    func fetchIndustryUpdates() async throws -> [ClientIndustryUpdate] {
+        let requestURL = baseURL.appendingPathComponent("api/industry-updates/sync")
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "GET"
+
+        struct UpdatesEnvelope: Decodable {
+            let items: [ClientIndustryUpdate]
+        }
+
+        let envelope = try await send(request: request, decode: UpdatesEnvelope.self)
+        return envelope.items
+    }
+
+    func downloadPreviewFile(url: URL) async throws -> URL {
+        do {
+            let (temporaryURL, response) = try await session.download(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200 ... 299).contains(httpResponse.statusCode)
+            else {
+                throw ClientAPIError.invalidResponse
+            }
+
+            let destination = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(url.pathExtension.isEmpty ? "dat" : url.pathExtension)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: temporaryURL, to: destination)
+            return destination
+        } catch let error as ClientAPIError {
+            throw error
+        } catch {
+            throw ClientAPIError.transport(error)
+        }
     }
 
     func uploadDocuments(

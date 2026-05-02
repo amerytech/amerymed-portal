@@ -1,3 +1,4 @@
+import QuickLook
 import UIKit
 
 final class ClientUploadHistoryViewController: UIViewController {
@@ -9,6 +10,7 @@ final class ClientUploadHistoryViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .insetGrouped)
     private let refreshControl = UIRefreshControl()
     private let emptyLabel = UILabel()
+    private var previewFileURL: URL?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -159,6 +161,16 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         metadataLabel.numberOfLines = 0
         metadataLabel.text = metadata
 
+        let reviewButton = UIButton(type: .system)
+        reviewButton.setTitle("Review", for: .normal)
+        reviewButton.setTitleColor(primaryBlue, for: .normal)
+        reviewButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        reviewButton.backgroundColor = UIColor(red: 233 / 255, green: 240 / 255, blue: 251 / 255, alpha: 1)
+        reviewButton.layer.cornerRadius = 12
+        reviewButton.contentEdgeInsets = UIEdgeInsets(top: 10, left: 14, bottom: 10, right: 14)
+        reviewButton.tag = indexPath.row
+        reviewButton.addTarget(self, action: #selector(handleReviewUpload(_:)), for: .touchUpInside)
+
         let deleteButton = UIButton(type: .system)
         deleteButton.setTitle("Delete Upload", for: .normal)
         deleteButton.setTitleColor(.white, for: .normal)
@@ -170,7 +182,12 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
         deleteButton.tag = indexPath.row
         deleteButton.addTarget(self, action: #selector(handleDeleteUpload(_:)), for: .touchUpInside)
 
-        let stack = UIStackView(arrangedSubviews: [titleLabel, metadataLabel, deleteButton])
+        let actionStack = UIStackView(arrangedSubviews: [reviewButton, deleteButton])
+        actionStack.axis = .horizontal
+        actionStack.spacing = 10
+        actionStack.distribution = .fillEqually
+
+        let stack = UIStackView(arrangedSubviews: [titleLabel, metadataLabel, actionStack])
         stack.axis = .vertical
         stack.spacing = 10
 
@@ -190,6 +207,7 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
             inset.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             inset.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             inset.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            reviewButton.heightAnchor.constraint(equalToConstant: 40),
             deleteButton.heightAnchor.constraint(equalToConstant: 40),
         ])
 
@@ -212,6 +230,33 @@ extension ClientUploadHistoryViewController: UITableViewDataSource {
 }
 
 extension ClientUploadHistoryViewController {
+    @objc private func handleReviewUpload(_ sender: UIButton) {
+        guard sender.tag < uploads.count else { return }
+        let upload = uploads[sender.tag]
+
+        guard let previewUrl = upload.previewUrl,
+              let url = URL(string: previewUrl)
+        else {
+            showAlert(title: "Preview Unavailable", message: "This upload does not have a review link yet.")
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let fileURL = try await ClientAPI.shared.downloadPreviewFile(url: url)
+                await MainActor.run {
+                    self.presentPreview(url: fileURL)
+                }
+            } catch {
+                await MainActor.run {
+                    self.showAlert(title: "Unable to Review", message: error.localizedDescription)
+                }
+            }
+        }
+    }
+
     @objc private func handleDeleteUpload(_ sender: UIButton) {
         guard sender.tag < uploads.count else { return }
         let upload = uploads[sender.tag]
@@ -249,5 +294,22 @@ extension ClientUploadHistoryViewController {
                 }
             }
         }
+    }
+
+    private func presentPreview(url: URL) {
+        previewFileURL = url
+        let previewController = QLPreviewController()
+        previewController.dataSource = self
+        present(previewController, animated: true)
+    }
+}
+
+extension ClientUploadHistoryViewController: QLPreviewControllerDataSource {
+    func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+        previewFileURL == nil ? 0 : 1
+    }
+
+    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+        previewFileURL! as NSURL
     }
 }

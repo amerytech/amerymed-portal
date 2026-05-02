@@ -4,6 +4,7 @@ export type MobileClientUploadRecord = {
   id: string;
   fileName: string;
   filePath: string | null;
+  previewUrl: string | null;
   fileSize: number | null;
   fileType: string | null;
   clinicName: string | null;
@@ -105,19 +106,34 @@ export async function buildMobileClientUploadHistory(
     throw new Error(error.message);
   }
 
-  return (uploads || []).map((upload) => ({
-    id: normalizeText(upload.id),
-    fileName: normalizeText(upload.file_name),
-    filePath: normalizeText(upload.file_path) || null,
-    fileSize: typeof upload.file_size === 'number' ? upload.file_size : null,
-    fileType: normalizeText(upload.file_type) || null,
-    clinicName: normalizeText(upload.clinic_name) || null,
-    category: normalizeText(upload.category) || null,
-    patientReference: normalizeText(upload.patient_reference) || null,
-    notes: normalizeText(upload.notes) || null,
-    status: normalizeText(upload.status) || null,
-    createdAt: normalizeText(upload.created_at),
-  }));
+  return Promise.all(
+    (uploads || []).map(async (upload) => {
+      const filePath = normalizeText(upload.file_path);
+      let previewUrl: string | null = null;
+
+      if (filePath) {
+        const { data: signedUrlData } = await supabase.storage
+          .from('client-documents')
+          .createSignedUrl(filePath, 60 * 15);
+        previewUrl = signedUrlData?.signedUrl || null;
+      }
+
+      return {
+        id: normalizeText(upload.id),
+        fileName: normalizeText(upload.file_name),
+        filePath: filePath || null,
+        previewUrl,
+        fileSize: typeof upload.file_size === 'number' ? upload.file_size : null,
+        fileType: normalizeText(upload.file_type) || null,
+        clinicName: normalizeText(upload.clinic_name) || null,
+        category: normalizeText(upload.category) || null,
+        patientReference: normalizeText(upload.patient_reference) || null,
+        notes: normalizeText(upload.notes) || null,
+        status: normalizeText(upload.status) || null,
+        createdAt: normalizeText(upload.created_at),
+      };
+    })
+  );
 }
 
 export async function deleteMobileClientUpload(params: {

@@ -1,4 +1,6 @@
 import PhotosUI
+import QuickLook
+import SafariServices
 import UIKit
 import UniformTypeIdentifiers
 
@@ -101,11 +103,15 @@ final class ClientUploadComposerViewController: UIViewController {
     private let addPhotosButton = UIButton(type: .system)
     private let addFilesButton = UIButton(type: .system)
     private let logoImageView = UIImageView(image: UIImage(named: "AMedLogo"))
+    private let liveFeedButton = UIButton(type: .system)
 
     private let mobileCameraInputAccessory = UIToolbar()
     private let categoryPicker = UIPickerView()
     private var activeInputView: UIView?
     private var capturePresetButtons: [UIButton] = []
+    private var previewFileURL: URL?
+    private var liveFeedURL: URL?
+    private var liveFeedMarqueeDistance: CGFloat = 0
 
     private var selectedCategory: ClientUploadCategory = .eob {
         didSet {
@@ -224,6 +230,7 @@ final class ClientUploadComposerViewController: UIViewController {
         ])
 
         contentStack.addArrangedSubview(makeHeroCard())
+        contentStack.addArrangedSubview(makeLiveFeedCard())
         contentStack.addArrangedSubview(makeFormCard())
         contentStack.addArrangedSubview(statusLabel)
 
@@ -273,6 +280,36 @@ final class ClientUploadComposerViewController: UIViewController {
             stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
+
+        return container
+    }
+
+    private func makeLiveFeedCard() -> UIView {
+        let container = UIView()
+        container.backgroundColor = .white
+        container.layer.cornerRadius = 18
+        container.clipsToBounds = true
+
+        liveFeedButton.setTitle("Live update: checking trusted sources...", for: .normal)
+        liveFeedButton.setTitleColor(primaryBlue, for: .normal)
+        liveFeedButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        liveFeedButton.titleLabel?.lineBreakMode = .byClipping
+        liveFeedButton.contentHorizontalAlignment = .leading
+        liveFeedButton.contentEdgeInsets = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        liveFeedButton.addTarget(self, action: #selector(handleLiveFeedTap), for: .touchUpInside)
+        liveFeedButton.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(liveFeedButton)
+
+        NSLayoutConstraint.activate([
+            liveFeedButton.topAnchor.constraint(equalTo: container.topAnchor),
+            liveFeedButton.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            liveFeedButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            liveFeedButton.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        Task { [weak self] in
+            await self?.loadLiveFeed()
+        }
 
         return container
     }
@@ -686,6 +723,13 @@ final class ClientUploadComposerViewController: UIViewController {
             copyStack.addArrangedSubview(nameLabel)
             copyStack.addArrangedSubview(metaLabel)
 
+            let reviewButton = UIButton(type: .system)
+            reviewButton.setTitle("Review", for: .normal)
+            reviewButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+            reviewButton.setTitleColor(primaryBlue, for: .normal)
+            reviewButton.tag = index
+            reviewButton.addTarget(self, action: #selector(handleReviewSelectedFile(_:)), for: .touchUpInside)
+
             let removeButton = UIButton(type: .system)
             removeButton.setTitle("Remove", for: .normal)
             removeButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -693,8 +737,13 @@ final class ClientUploadComposerViewController: UIViewController {
             removeButton.tag = index
             removeButton.addTarget(self, action: #selector(handleRemoveFile(_:)), for: .touchUpInside)
 
+            let actionStack = UIStackView(arrangedSubviews: [reviewButton, removeButton])
+            actionStack.axis = .vertical
+            actionStack.spacing = 8
+            actionStack.alignment = .trailing
+
             stack.addArrangedSubview(copyStack)
-            stack.addArrangedSubview(removeButton)
+            stack.addArrangedSubview(actionStack)
             row.addSubview(stack)
 
             NSLayoutConstraint.activate([
@@ -738,6 +787,27 @@ final class ClientUploadComposerViewController: UIViewController {
     @objc private func handleRemoveFile(_ sender: UIButton) {
         guard sender.tag < selectedFiles.count else { return }
         selectedFiles.remove(at: sender.tag)
+    }
+
+    @objc private func handleReviewSelectedFile(_ sender: UIButton) {
+        guard sender.tag < selectedFiles.count else { return }
+        let file = selectedFiles[sender.tag]
+        let extensionValue = (file.fileName as NSString).pathExtension
+        let previewURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(extensionValue.isEmpty ? "dat" : extensionValue)
+
+        do {
+            try file.data.write(to: previewURL)
+            presentPreview(url: previewURL)
+        } catch {
+            showStatus("Unable to prepare this file for review.", isError: true)
+        }
+    }
+
+    @objc private func handleLiveFeedTap() {
+        guard let liveFeedURL else { return }
+        present(SFSafariViewController(url: liveFeedURL), animated: true)
     }
 
     @objc private func handleFormFieldChanged() {
@@ -864,6 +934,64 @@ final class ClientUploadComposerViewController: UIViewController {
         statusLabel.isHidden = message.isEmpty
     }
 
+    @MainActor
+    private func loadLiveFeed() async {
+        do {
+            let updates = try await ClientAPI.shared.fetchIndustryUpdates()
+            guard let update = updates.first else {
+                liveFeedButton.setTitle("Live update: no current items available", for: .normal)
+                liveFeedURL = nil
+                startLiveFeedMarqueeIfNeeded()
+                return
+            }
+
+            let topic = (update.topic?.isEmpty == false ? update.topic : "Industry update") ?? "Industry update"
+            liveFeedButton.setTitle("Live update: \(topic) - \(trimmedFeedTitle(update.title))", for: .normal)
+            liveFeedURL = update.sourceUrl.flatMap(URL.init(string:))
+            startLiveFeedMarqueeIfNeeded()
+        } catch {
+            liveFeedButton.setTitle("Live update: temporarily unavailable", for: .normal)
+            liveFeedURL = nil
+            startLiveFeedMarqueeIfNeeded()
+        }
+    }
+
+    private func trimmedFeedTitle(_ title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 90 else { return trimmed }
+        return "\(trimmed.prefix(87))..."
+    }
+
+    private func startLiveFeedMarqueeIfNeeded() {
+        liveFeedButton.titleLabel?.layer.removeAllAnimations()
+        liveFeedButton.titleLabel?.transform = .identity
+        liveFeedButton.layoutIfNeeded()
+
+        guard let titleLabel = liveFeedButton.titleLabel else { return }
+
+        let labelWidth = titleLabel.intrinsicContentSize.width
+        let availableWidth = liveFeedButton.bounds.width - liveFeedButton.contentEdgeInsets.left - liveFeedButton.contentEdgeInsets.right
+        liveFeedMarqueeDistance = max(0, labelWidth - availableWidth + 28)
+
+        guard liveFeedMarqueeDistance > 0 else { return }
+
+        UIView.animate(
+            withDuration: min(8.0, max(4.0, TimeInterval(liveFeedMarqueeDistance / 24))),
+            delay: 0.8,
+            options: [.curveLinear, .repeat, .autoreverse, .allowUserInteraction],
+            animations: {
+                titleLabel.transform = CGAffineTransform(translationX: -self.liveFeedMarqueeDistance, y: 0)
+            }
+        )
+    }
+
+    private func presentPreview(url: URL) {
+        previewFileURL = url
+        let previewController = QLPreviewController()
+        previewController.dataSource = self
+        present(previewController, animated: true)
+    }
+
     private func formattedFileSize(_ bytes: Int) -> String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
@@ -881,6 +1009,16 @@ final class ClientUploadComposerViewController: UIViewController {
         label.textColor = color
         label.numberOfLines = 0
         return label
+    }
+}
+
+extension ClientUploadComposerViewController: QLPreviewControllerDataSource {
+    func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+        previewFileURL == nil ? 0 : 1
+    }
+
+    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+        previewFileURL! as NSURL
     }
 }
 
