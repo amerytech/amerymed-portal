@@ -20,6 +20,7 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
         title = "AmeryMed"
         view.backgroundColor = pageBackground
         navigationItem.largeTitleDisplayMode = .always
+        configureNavigationAppearance()
         configureLayout()
         registerForKeyboardNotifications()
     }
@@ -232,6 +233,12 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
         field.layer.borderWidth = 1
         field.layer.borderColor = UIColor(red: 224 / 255, green: 231 / 255, blue: 241 / 255, alpha: 1).cgColor
         field.font = .systemFont(ofSize: 16, weight: .medium)
+        field.textColor = primaryBlue
+        field.tintColor = primaryBlue
+        field.attributedPlaceholder = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: secondaryText.withAlphaComponent(0.72)]
+        )
         field.delegate = self
 
         let paddingView = UIView(frame: CGRect(x: 0, y: 0, width: 16, height: 10))
@@ -239,6 +246,20 @@ final class ClientLoginViewController: UIViewController, UITextFieldDelegate {
         field.leftViewMode = .always
         field.rightView = paddingView
         field.rightViewMode = .always
+    }
+
+    private func configureNavigationAppearance() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = pageBackground
+        appearance.shadowColor = .clear
+        appearance.titleTextAttributes = [.foregroundColor: primaryBlue]
+        appearance.largeTitleTextAttributes = [.foregroundColor: primaryBlue]
+
+        navigationController?.navigationBar.standardAppearance = appearance
+        navigationController?.navigationBar.scrollEdgeAppearance = appearance
+        navigationController?.navigationBar.compactAppearance = appearance
+        navigationController?.navigationBar.tintColor = primaryBlue
     }
 
     private func makeLabel(text: String, font: UIFont, color: UIColor) -> UILabel {
