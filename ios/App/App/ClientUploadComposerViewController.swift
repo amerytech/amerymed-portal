@@ -290,6 +290,7 @@ final class ClientUploadComposerViewController: UIViewController {
         patientReferenceField.autocapitalizationType = .words
         patientReferenceField.returnKeyType = .next
         patientReferenceField.delegate = self
+        patientReferenceField.addTarget(self, action: #selector(handleFormFieldChanged), for: .editingChanged)
         stack.addArrangedSubview(patientReferenceField)
 
         stack.addArrangedSubview(makeLabel(text: "Notes", font: .systemFont(ofSize: 15, weight: .semibold), color: secondaryText))
@@ -714,6 +715,10 @@ final class ClientUploadComposerViewController: UIViewController {
         selectedFiles.remove(at: sender.tag)
     }
 
+    @objc private func handleFormFieldChanged() {
+        renderSelectedFiles()
+    }
+
     @objc private func handleAddPhotos() {
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
         configuration.selectionLimit = 0
@@ -747,14 +752,6 @@ final class ClientUploadComposerViewController: UIViewController {
             return
         }
 
-        if !duplicateMatches.isEmpty {
-            showStatus(
-                "A similar upload already exists. Remove the duplicate file or update the patient reference before submitting.",
-                isError: true
-            )
-            return
-        }
-
         setSubmitting(true)
         showStatus("", isError: false)
 
@@ -762,32 +759,53 @@ final class ClientUploadComposerViewController: UIViewController {
             guard let self else { return }
 
             do {
-                try await ClientAPI.shared.uploadDocuments(
-                    accessToken: session.accessToken,
-                    category: selectedCategory.rawValue,
-                    patientReference: patientReference,
-                    notes: notes,
-                    files: selectedFiles
-                )
+                await self.loadExistingUploads()
+
+                guard !patientReference.isEmpty else {
+                    await MainActor.run {
+                        self.setSubmitting(false)
+                        self.showStatus("Patient reference is required before uploading any document.", isError: true)
+                    }
+                    return
+                }
+
+                guard !self.duplicateMatches.isEmpty else {
+                    try await ClientAPI.shared.uploadDocuments(
+                        accessToken: session.accessToken,
+                        category: self.selectedCategory.rawValue,
+                        patientReference: patientReference,
+                        notes: notes,
+                        files: self.selectedFiles
+                    )
+
+                    await MainActor.run {
+                        self.setSubmitting(false)
+                        ClientSessionStore.markRefreshRequired()
+                        self.showStatus(
+                            self.selectedFiles.count == 1
+                                ? "Upload saved successfully."
+                                : "\(self.selectedFiles.count) files saved successfully.",
+                            isError: false
+                        )
+                        self.selectedFiles = []
+                        self.patientReferenceField.text = ""
+                        self.notesView.text = ""
+                        self.selectedCategory = .eob
+                        self.selectedPreset = .general
+                        self.view.endEditing(true)
+                        Task { [weak self] in
+                            await self?.loadExistingUploads()
+                        }
+                    }
+                    return
+                }
 
                 await MainActor.run {
                     self.setSubmitting(false)
-                    ClientSessionStore.markRefreshRequired()
                     self.showStatus(
-                        self.selectedFiles.count == 1
-                            ? "Upload saved successfully."
-                            : "\(self.selectedFiles.count) files saved successfully.",
-                        isError: false
+                        "A similar upload already exists. Remove the duplicate file or change the patient reference before submitting.",
+                        isError: true
                     )
-                    self.selectedFiles = []
-                    self.patientReferenceField.text = ""
-                    self.notesView.text = ""
-                    self.selectedCategory = .eob
-                    self.selectedPreset = .general
-                    self.view.endEditing(true)
-                    Task { [weak self] in
-                        await self?.loadExistingUploads()
-                    }
                 }
             } catch {
                 await MainActor.run {
