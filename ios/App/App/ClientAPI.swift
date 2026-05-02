@@ -15,6 +15,25 @@ struct ClientDashboardSummary: Codable {
     let processedCount: Int
 }
 
+struct ClientUploadRecord: Decodable {
+    let id: String
+    let fileName: String
+    let fileSize: Int?
+    let fileType: String?
+    let clinicName: String?
+    let category: String?
+    let patientReference: String?
+    let notes: String?
+    let status: String?
+    let createdAt: String
+}
+
+struct ClientUploadDraft {
+    let fileName: String
+    let mimeType: String
+    let data: Data
+}
+
 enum ClientAPIError: LocalizedError {
     case invalidResponse
     case server(message: String)
@@ -31,6 +50,8 @@ enum ClientAPIError: LocalizedError {
         }
     }
 }
+
+private struct EmptyResponse: Decodable {}
 
 final class ClientAPI {
     static let shared = ClientAPI()
@@ -70,6 +91,47 @@ final class ClientAPI {
         return envelope.summary
     }
 
+    func fetchUploadHistory(accessToken: String) async throws -> [ClientUploadRecord] {
+        let requestURL = baseURL.appendingPathComponent("api/mobile/client/history")
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "accessToken": accessToken,
+        ])
+
+        struct HistoryEnvelope: Decodable {
+            let uploads: [ClientUploadRecord]
+        }
+
+        let envelope = try await send(request: request, decode: HistoryEnvelope.self)
+        return envelope.uploads
+    }
+
+    func uploadDocuments(
+        accessToken: String,
+        category: String,
+        patientReference: String,
+        notes: String,
+        files: [ClientUploadDraft]
+    ) async throws {
+        let requestURL = baseURL.appendingPathComponent("api/mobile/client/upload")
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = createMultipartBody(
+            boundary: boundary,
+            accessToken: accessToken,
+            category: category,
+            patientReference: patientReference,
+            notes: notes,
+            files: files
+        )
+
+        _ = try await send(request: request, decode: EmptyResponse.self)
+    }
+
     private func send<T: Decodable>(request: URLRequest, decode: T.Type) async throws -> T {
         do {
             let (data, response) = try await session.data(for: request)
@@ -90,6 +152,41 @@ final class ClientAPI {
         } catch {
             throw ClientAPIError.transport(error)
         }
+    }
+
+    private func createMultipartBody(
+        boundary: String,
+        accessToken: String,
+        category: String,
+        patientReference: String,
+        notes: String,
+        files: [ClientUploadDraft]
+    ) -> Data {
+        var body = Data()
+
+        func appendField(name: String, value: String) {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+
+        appendField(name: "accessToken", value: accessToken)
+        appendField(name: "category", value: category)
+        appendField(name: "patientReference", value: patientReference)
+        appendField(name: "notes", value: notes)
+
+        for file in files {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append(
+                "Content-Disposition: form-data; name=\"files\"; filename=\"\(file.fileName)\"\r\n".data(using: .utf8)!
+            )
+            body.append("Content-Type: \(file.mimeType)\r\n\r\n".data(using: .utf8)!)
+            body.append(file.data)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        return body
     }
 }
 

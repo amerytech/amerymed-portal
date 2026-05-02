@@ -8,6 +8,7 @@ struct ClientSession: Codable {
 
 enum ClientSessionStore {
     private static let sessionKey = "amerymed.client.native.session"
+    private static let refreshRequiredKey = "amerymed.client.native.refresh-required"
 
     static func load() -> ClientSession? {
         guard let data = UserDefaults.standard.data(forKey: sessionKey) else {
@@ -27,5 +28,18 @@ enum ClientSessionStore {
 
     static func clear() {
         UserDefaults.standard.removeObject(forKey: sessionKey)
+        UserDefaults.standard.removeObject(forKey: refreshRequiredKey)
+    }
+
+    static func markRefreshRequired() {
+        UserDefaults.standard.set(true, forKey: refreshRequiredKey)
+    }
+
+    static func consumeRefreshRequired() -> Bool {
+        let required = UserDefaults.standard.bool(forKey: refreshRequiredKey)
+        if required {
+            UserDefaults.standard.removeObject(forKey: refreshRequiredKey)
+        }
+        return required
     }
 }

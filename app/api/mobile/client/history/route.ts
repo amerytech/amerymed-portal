@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildMobileClientSummaryForAccessToken } from '@/lib/mobile-client-summary';
+import {
+  buildMobileClientUploadHistory,
+  resolveMobileClientAccess,
+} from '@/lib/mobile-client-uploads';
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
-  return 'Unexpected client summary error';
+  return 'Unexpected client history error';
 }
 
 export async function POST(request: NextRequest) {
@@ -15,8 +18,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access token is required.' }, { status: 400 });
     }
 
-    const summary = await buildMobileClientSummaryForAccessToken(accessToken);
-    return NextResponse.json({ summary });
+    const access = await resolveMobileClientAccess(accessToken);
+    const uploads = await buildMobileClientUploadHistory(access.clientId);
+
+    return NextResponse.json({ uploads });
   } catch (error: unknown) {
     const message = getErrorMessage(error);
     const status = message.toLowerCase().includes('session') ? 401 : 500;

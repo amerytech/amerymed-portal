@@ -1,4 +1,5 @@
 import { createAdminSupabaseClient } from '@/lib/supabase-admin';
+import { resolveMobileClientAccess } from '@/lib/mobile-client-uploads';
 
 export type MobileClientSummary = {
   userEmail: string;
@@ -92,5 +93,10 @@ export async function buildMobileClientSummary(userId: string, userEmail: string
     receivedCount: statusCounts.received,
     inReviewCount: statusCounts.inReview,
     processedCount: statusCounts.processed,
-  } satisfies MobileClientSummary;
+} satisfies MobileClientSummary;
+}
+
+export async function buildMobileClientSummaryForAccessToken(accessToken: string) {
+  const access = await resolveMobileClientAccess(accessToken);
+  return buildMobileClientSummary(access.userId, access.userEmail);
 }

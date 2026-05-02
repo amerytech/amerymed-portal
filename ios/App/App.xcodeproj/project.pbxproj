@@ -19,6 +19,8 @@
 		72C100030000000100000001 /* ClientDashboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C100040000000100000001 /* ClientDashboardViewController.swift */; };
 		72C100050000000100000001 /* ClientLoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C100060000000100000001 /* ClientLoginViewController.swift */; };
 		72C100070000000100000001 /* ClientSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C100080000000100000001 /* ClientSessionStore.swift */; };
+		72C100090000000100000001 /* ClientUploadComposerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C1000A0000000100000001 /* ClientUploadComposerViewController.swift */; };
+		72C1000B0000000100000001 /* ClientUploadHistoryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C1000C0000000100000001 /* ClientUploadHistoryViewController.swift */; };
 		A04A50010000000100000001 /* NativeStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04A50020000000100000001 /* NativeStoragePlugin.swift */; };
 		B1C100010000000100000001 /* ClientHomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C100020000000100000001 /* ClientHomeViewController.swift */; };
 		B1C100030000000100000001 /* ClientPortalViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C100040000000100000001 /* ClientPortalViewController.swift */; };
@@ -38,6 +40,8 @@
 		72C100040000000100000001 /* ClientDashboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientDashboardViewController.swift; sourceTree = "<group>"; };
 		72C100060000000100000001 /* ClientLoginViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientLoginViewController.swift; sourceTree = "<group>"; };
 		72C100080000000100000001 /* ClientSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientSessionStore.swift; sourceTree = "<group>"; };
+		72C1000A0000000100000001 /* ClientUploadComposerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientUploadComposerViewController.swift; sourceTree = "<group>"; };
+		72C1000C0000000100000001 /* ClientUploadHistoryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientUploadHistoryViewController.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		A04A50020000000100000001 /* NativeStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeStoragePlugin.swift; sourceTree = "<group>"; };
 		B1C100020000000100000001 /* ClientHomeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeViewController.swift; sourceTree = "<group>"; };
@@ -84,6 +88,8 @@
 				72C100060000000100000001 /* ClientLoginViewController.swift */,
 				B1C100040000000100000001 /* ClientPortalViewController.swift */,
 				72C100080000000100000001 /* ClientSessionStore.swift */,
+				72C1000A0000000100000001 /* ClientUploadComposerViewController.swift */,
+				72C1000C0000000100000001 /* ClientUploadHistoryViewController.swift */,
 				A04A50020000000100000001 /* NativeStoragePlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -182,6 +188,8 @@
 				72C100030000000100000001 /* ClientDashboardViewController.swift in Sources */,
 				72C100050000000100000001 /* ClientLoginViewController.swift in Sources */,
 				72C100070000000100000001 /* ClientSessionStore.swift in Sources */,
+				72C100090000000100000001 /* ClientUploadComposerViewController.swift in Sources */,
+				72C1000B0000000100000001 /* ClientUploadHistoryViewController.swift in Sources */,
 				A04A50010000000100000001 /* NativeStoragePlugin.swift in Sources */,
 				B1C100010000000100000001 /* ClientHomeViewController.swift in Sources */,
 				B1C100030000000100000001 /* ClientPortalViewController.swift in Sources */,

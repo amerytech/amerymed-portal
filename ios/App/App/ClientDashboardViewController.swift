@@ -8,6 +8,8 @@ final class ClientDashboardViewController: UIViewController {
 
     private var summary: ClientDashboardSummary
     private let refreshButton = UIButton(type: .system)
+    private let uploadButton = UIButton(type: .system)
+    private let historyButton = UIButton(type: .system)
     private let signOutButton = UIButton(type: .system)
     private let feedbackLabel = UILabel()
     private let scrollView = UIScrollView()
@@ -30,6 +32,13 @@ final class ClientDashboardViewController: UIViewController {
         navigationItem.largeTitleDisplayMode = .always
         configureLayout()
         renderSummary()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if ClientSessionStore.consumeRefreshRequired() {
+            handleRefresh()
+        }
     }
 
     private func configureLayout() {
@@ -247,15 +256,31 @@ final class ClientDashboardViewController: UIViewController {
         stack.isLayoutMarginsRelativeArrangement = true
 
         let title = makeLabel(
-            text: "Native Next Steps",
+            text: "Client Workspace",
             font: .systemFont(ofSize: 22, weight: .bold),
             color: primaryBlue
         )
         let body = makeLabel(
-            text: "This shell keeps sign-in and the initial account overview inside the app. Next we can add native upload, native history, and native messaging so Apple sees a complete app-first workflow.",
+            text: "Keep the primary client workflow inside the app with native upload tools, native upload history, and quick status refresh before opening any extended portal tools.",
             font: .systemFont(ofSize: 15, weight: .regular),
             color: secondaryText
         )
+
+        uploadButton.setTitle("Upload Documents", for: .normal)
+        uploadButton.setTitleColor(.white, for: .normal)
+        uploadButton.backgroundColor = primaryBlue
+        uploadButton.layer.cornerRadius = 14
+        uploadButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+        uploadButton.contentEdgeInsets = UIEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
+        uploadButton.addTarget(self, action: #selector(handleUpload), for: .touchUpInside)
+
+        historyButton.setTitle("View Upload History", for: .normal)
+        historyButton.setTitleColor(primaryBlue, for: .normal)
+        historyButton.backgroundColor = UIColor(red: 238 / 255, green: 243 / 255, blue: 251 / 255, alpha: 1)
+        historyButton.layer.cornerRadius = 14
+        historyButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+        historyButton.contentEdgeInsets = UIEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
+        historyButton.addTarget(self, action: #selector(handleHistory), for: .touchUpInside)
 
         refreshButton.setTitle("Refresh Summary", for: .normal)
         refreshButton.setTitleColor(.white, for: .normal)
@@ -275,6 +300,8 @@ final class ClientDashboardViewController: UIViewController {
 
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(body)
+        stack.addArrangedSubview(uploadButton)
+        stack.addArrangedSubview(historyButton)
         stack.addArrangedSubview(refreshButton)
         stack.addArrangedSubview(signOutButton)
         container.addSubview(stack)
@@ -337,6 +364,14 @@ final class ClientDashboardViewController: UIViewController {
     @objc private func handleSignOut() {
         ClientSessionStore.clear()
         navigationController?.setViewControllers([ClientLoginViewController()], animated: true)
+    }
+
+    @objc private func handleUpload() {
+        navigationController?.pushViewController(ClientUploadComposerViewController(), animated: true)
+    }
+
+    @objc private func handleHistory() {
+        navigationController?.pushViewController(ClientUploadHistoryViewController(), animated: true)
     }
 
     private func setRefreshing(_ refreshing: Bool) {
