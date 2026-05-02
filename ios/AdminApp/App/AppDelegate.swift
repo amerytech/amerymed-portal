@@ -10,7 +10,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         clearEmbeddedWebViewDataIfNeeded()
+        configureRootWindow()
         return true
+    }
+
+    private func configureRootWindow() {
+        let rootController: UIViewController
+        if let session = AdminSessionStore.load() {
+            rootController = AdminDashboardViewController(dashboard: session.dashboard)
+        } else {
+            rootController = AdminLoginViewController()
+        }
+
+        let navigationController = UINavigationController(rootViewController: rootController)
+        navigationController.navigationBar.prefersLargeTitles = true
+        navigationController.navigationBar.tintColor = UIColor(red: 18 / 255, green: 60 / 255, blue: 122 / 255, alpha: 1)
+
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = navigationController
+        window.makeKeyAndVisible()
+        self.window = window
     }
 
     private func clearEmbeddedWebViewDataIfNeeded() {
