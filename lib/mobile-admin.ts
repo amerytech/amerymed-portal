@@ -160,3 +160,96 @@ export async function updateMobileAdminUploadStatus(params: {
     details: `Status changed to ${normalizedStatus}`,
   });
 }
+
+export async function updateMobileAdminUploadNotes(params: {
+  access: AdminAccess;
+  uploadId: string;
+  notes: string;
+}) {
+  const supabase = createAdminSupabaseClient();
+  const normalizedUploadId = params.uploadId.trim();
+
+  const { data: upload, error: fetchError } = await supabase
+    .from('uploads')
+    .select('id, file_name')
+    .eq('id', normalizedUploadId)
+    .single();
+
+  if (fetchError || !upload) {
+    throw new Error(fetchError?.message || 'Upload could not be found.');
+  }
+
+  const { error } = await supabase
+    .from('uploads')
+    .update({ notes: params.notes })
+    .eq('id', normalizedUploadId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await supabase.from('audit_logs').insert({
+    user_id: params.access.userId,
+    user_email: params.access.userEmail || null,
+    action: 'NOTES_UPDATE',
+    upload_id: normalizedUploadId,
+    file_name: normalizeText(upload.file_name) || null,
+    details: `Notes updated to: ${params.notes}`,
+  });
+}
+
+export async function deleteMobileAdminUploads(params: {
+  access: AdminAccess;
+  uploadIds: string[];
+}) {
+  const supabase = createAdminSupabaseClient();
+  const uploadIds = Array.from(new Set(params.uploadIds.map((id) => id.trim()).filter(Boolean)));
+
+  if (uploadIds.length === 0) {
+    throw new Error('At least one upload is required.');
+  }
+
+  const { data: uploads, error: fetchError } = await supabase
+    .from('uploads')
+    .select('id, file_name, file_path')
+    .in('id', uploadIds);
+
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  if (!uploads || uploads.length === 0) {
+    throw new Error('No uploads could be found.');
+  }
+
+  const filePaths = uploads
+    .map((upload) => normalizeText(upload.file_path).trim().replace(/^\/+/, ''))
+    .filter(Boolean);
+
+  if (filePaths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from('client-documents')
+      .remove(filePaths);
+
+    if (storageError) {
+      throw new Error(storageError.message);
+    }
+  }
+
+  const { error: deleteError } = await supabase.from('uploads').delete().in('id', uploadIds);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  await supabase.from('audit_logs').insert(
+    uploads.map((upload) => ({
+      user_id: params.access.userId,
+      user_email: params.access.userEmail || null,
+      action: 'DELETE',
+      upload_id: normalizeText(upload.id),
+      file_name: normalizeText(upload.file_name) || null,
+      details: `Deleted upload and storage object: ${normalizeText(upload.file_path) || 'no path'}`,
+    }))
+  );
+}

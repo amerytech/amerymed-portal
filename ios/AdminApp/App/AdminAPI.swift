@@ -74,6 +74,45 @@ final class AdminAPI {
         return try await send(request: request, decode: DashboardEnvelope.self).dashboard
     }
 
+    func updateNotes(accessToken: String, uploadId: String, notes: String) async throws -> AdminDashboard {
+        let requestURL = baseURL.appendingPathComponent("api/mobile/admin/dashboard")
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode([
+            "accessToken": accessToken,
+            "uploadId": uploadId,
+            "action": "notes",
+            "notes": notes,
+        ])
+
+        struct DashboardEnvelope: Decodable {
+            let dashboard: AdminDashboard
+        }
+
+        return try await send(request: request, decode: DashboardEnvelope.self).dashboard
+    }
+
+    func deleteUploads(accessToken: String, uploadIds: [String]) async throws -> AdminDashboard {
+        let requestURL = baseURL.appendingPathComponent("api/mobile/admin/dashboard")
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        struct DeletePayload: Encodable {
+            let accessToken: String
+            let uploadIds: [String]
+        }
+
+        request.httpBody = try JSONEncoder().encode(DeletePayload(accessToken: accessToken, uploadIds: uploadIds))
+
+        struct DashboardEnvelope: Decodable {
+            let dashboard: AdminDashboard
+        }
+
+        return try await send(request: request, decode: DashboardEnvelope.self).dashboard
+    }
+
     func downloadPreviewFile(url: URL) async throws -> URL {
         do {
             let (temporaryURL, response) = try await session.download(from: url)
