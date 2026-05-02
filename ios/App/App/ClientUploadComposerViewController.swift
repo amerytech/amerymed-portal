@@ -147,20 +147,27 @@ final class ClientUploadComposerViewController: UIViewController {
         let normalizedPatientReference = patientReferenceField.text?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() ?? ""
-        let normalizedFileNames = selectedFiles
-            .map { normalizedFileName($0.fileName) }
-            .filter { !$0.isEmpty }
+        let selectedFileSignatures = selectedFiles.map {
+            ClientUploadSignature(
+                fileName: normalizedFileName($0.fileName),
+                fileSize: $0.data.count,
+                fileType: $0.mimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            )
+        }
 
         return existingUploads.filter { item in
-            let sameFileName =
-                !normalizedFileNames.isEmpty &&
-                normalizedFileNames.contains(normalizedFileName(item.fileName))
+            let existingSignature = ClientUploadSignature(
+                fileName: normalizedFileName(item.fileName),
+                fileSize: item.fileSize ?? -1,
+                fileType: (item.fileType ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            )
+            let sameFileSignature = selectedFileSignatures.contains(existingSignature)
             let sameCategory = (item.category ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCategory
             let samePatientReference = (item.patientReference ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased() == normalizedPatientReference
 
-            return sameFileName || (!normalizedPatientReference.isEmpty && sameCategory && samePatientReference)
+            return sameFileSignature && sameCategory && samePatientReference
         }
     }
 
@@ -857,6 +864,12 @@ final class ClientUploadComposerViewController: UIViewController {
         label.numberOfLines = 0
         return label
     }
+}
+
+private struct ClientUploadSignature: Equatable {
+    let fileName: String
+    let fileSize: Int
+    let fileType: String
 }
 
 extension ClientUploadComposerViewController: UITextFieldDelegate {

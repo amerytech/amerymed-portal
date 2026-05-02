@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import {
   resolveMobileClientAccess,
   sanitizeStorageFileName,
@@ -8,6 +9,77 @@ import { createAdminSupabaseClient } from '@/lib/supabase-admin';
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return 'Unexpected client upload error';
+}
+
+function normalizeText(value: string | null | undefined) {
+  return (value || '').trim().toLowerCase();
+}
+
+async function isDuplicateUpload(params: {
+  supabase: ReturnType<typeof createAdminSupabaseClient>;
+  clientId: string;
+  category: string;
+  patientReference: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileBuffer: Buffer;
+}) {
+  const { supabase, clientId, category, patientReference, fileName, fileType, fileSize, fileBuffer } = params;
+  const { data: candidates, error } = await supabase
+    .from('uploads')
+    .select('id, file_name, file_path, file_size, file_type, category, patient_reference')
+    .eq('client_id', clientId)
+    .eq('category', category)
+    .eq('patient_reference', patientReference)
+    .eq('file_size', fileSize);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!candidates?.length) {
+    return false;
+  }
+
+  const incomingHash = createHash('sha256').update(fileBuffer).digest('hex');
+  const normalizedIncomingName = normalizeText(fileName);
+  const normalizedIncomingType = normalizeText(fileType);
+
+  for (const candidate of candidates) {
+    const normalizedExistingName = normalizeText(candidate.file_name);
+    const normalizedExistingType = normalizeText(candidate.file_type);
+    const sameMetadata =
+      normalizedExistingName === normalizedIncomingName &&
+      normalizedExistingType === normalizedIncomingType;
+
+    if (sameMetadata) {
+      return true;
+    }
+
+    const existingPath = typeof candidate.file_path === 'string' ? candidate.file_path : '';
+    if (!existingPath) {
+      continue;
+    }
+
+    const { data: storedFile, error: downloadError } = await supabase.storage
+      .from('client-documents')
+      .download(existingPath);
+
+    if (downloadError || !storedFile) {
+      continue;
+    }
+
+    const storedHash = createHash('sha256')
+      .update(Buffer.from(await storedFile.arrayBuffer()))
+      .digest('hex');
+
+    if (storedHash === incomingHash) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function POST(request: NextRequest) {
@@ -36,6 +108,23 @@ export async function POST(request: NextRequest) {
       const safeFileName = sanitizeStorageFileName(file.name || 'upload');
       const filePath = `uploads/${Date.now()}_${safeFileName}`;
       const fileBuffer = Buffer.from(await file.arrayBuffer());
+      const duplicateFound = await isDuplicateUpload({
+        supabase,
+        clientId: access.clientId,
+        category,
+        patientReference,
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        fileBuffer,
+      });
+
+      if (duplicateFound) {
+        return NextResponse.json(
+          { error: `A duplicate document already exists for ${category} and patient reference ${patientReference}.` },
+          { status: 409 }
+        );
+      }
 
       const { error: storageError } = await supabase.storage
         .from('client-documents')
