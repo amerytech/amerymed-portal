@@ -173,8 +173,11 @@ final class AdminDashboardViewController: UIViewController {
         let card = makeCard()
         let stack = makeVerticalStack(margins: UIEdgeInsets(top: 18, left: 18, bottom: 18, right: 18), spacing: 12)
         stack.addArrangedSubview(makeLabel(text: "Admin Actions", font: .systemFont(ofSize: 22, weight: .bold), color: primaryBlue))
-        stack.addArrangedSubview(makeLabel(text: "Open the native upload history page to search, review, edit notes, update status, delete records, bulk delete, or export CSV.", font: .systemFont(ofSize: 15, weight: .regular), color: secondaryText))
+        stack.addArrangedSubview(makeLabel(text: "Open the native upload history page to search, review, edit notes, update status, delete records, bulk delete, or export CSV. New uploads are flagged until staff moves them into review or processed.", font: .systemFont(ofSize: 15, weight: .regular), color: secondaryText))
         stack.addArrangedSubview(makePlainButton(title: "Open Upload History", color: accentTeal, action: #selector(handleOpenUploadHistory)))
+        if dashboard.receivedCount > 0 {
+            stack.addArrangedSubview(makePlainButton(title: "Review \(dashboard.receivedCount) New Upload\(dashboard.receivedCount == 1 ? "" : "s")", color: warningOrange, action: #selector(handleOpenNewUploads)))
+        }
         stack.addArrangedSubview(makePlainButton(title: "Refresh Dashboard", color: primaryBlue, action: #selector(handleRefresh)))
         pin(stack, to: card)
         return card
@@ -187,7 +190,7 @@ final class AdminDashboardViewController: UIViewController {
 
         let rows = [
             [makeStatTile(title: "Total", value: "\(dashboard.totalUploads)", color: primaryBlue),
-             makeStatTile(title: "Received", value: "\(dashboard.receivedCount)", color: primaryBlue)],
+             makeStatTile(title: "New", value: "\(dashboard.receivedCount)", color: warningOrange)],
             [makeStatTile(title: "In Review", value: "\(dashboard.inReviewCount)", color: warningOrange),
              makeStatTile(title: "Processed", value: "\(dashboard.processedCount)", color: UIColor(red: 25 / 255, green: 135 / 255, blue: 84 / 255, alpha: 1))],
         ]
@@ -219,7 +222,7 @@ final class AdminDashboardViewController: UIViewController {
         searchField.addTarget(self, action: #selector(searchChanged(_:)), for: .editingChanged)
         stack.addArrangedSubview(searchField)
 
-        let statusControl = UISegmentedControl(items: ["All", "Received", "Review", "Processed"])
+        let statusControl = UISegmentedControl(items: ["All", "New", "Review", "Processed"])
         statusControl.selectedSegmentIndex = ["all", "received", "in_review", "processed"].firstIndex(of: statusFilter) ?? 0
         statusControl.addTarget(self, action: #selector(statusFilterChanged(_:)), for: .valueChanged)
         stack.addArrangedSubview(statusControl)
@@ -236,7 +239,8 @@ final class AdminDashboardViewController: UIViewController {
     private func makeBulkActionsCard() -> UIView {
         let card = makeCard()
         let stack = makeVerticalStack(margins: UIEdgeInsets(top: 16, left: 18, bottom: 16, right: 18), spacing: 10)
-        stack.addArrangedSubview(makeLabel(text: "\(filteredUploads.count) upload(s) shown • \(selectedUploadIds.count) selected", font: .systemFont(ofSize: 14, weight: .bold), color: secondaryText))
+        let newShownCount = filteredUploads.filter { isNewUpload($0) }.count
+        stack.addArrangedSubview(makeLabel(text: "\(filteredUploads.count) upload(s) shown • \(newShownCount) new • \(selectedUploadIds.count) selected", font: .systemFont(ofSize: 14, weight: .bold), color: secondaryText))
 
         let selectButton = makePlainButton(title: allFilteredSelected ? "Clear Selection" : "Select Filtered", color: primaryBlue, action: #selector(handleSelectFiltered))
         let exportButton = makePlainButton(title: "Export CSV", color: accentTeal, action: #selector(handleExportCsv))
@@ -258,7 +262,7 @@ final class AdminDashboardViewController: UIViewController {
         let wrapper = UIView()
         let stack = makeVerticalStack(margins: .zero, spacing: 4)
         stack.addArrangedSubview(makeLabel(text: "Upload History", font: .systemFont(ofSize: 28, weight: .bold), color: primaryBlue))
-        stack.addArrangedSubview(makeLabel(text: "Review, edit notes, change status, delete records, or export the current filtered view.", font: .systemFont(ofSize: 14, weight: .regular), color: secondaryText))
+        stack.addArrangedSubview(makeLabel(text: "Review, edit notes, change status, delete records, or export the current filtered view. Use the New filter to isolate newly received uploads.", font: .systemFont(ofSize: 14, weight: .regular), color: secondaryText))
         pin(stack, to: wrapper)
         return wrapper
     }
@@ -269,7 +273,16 @@ final class AdminDashboardViewController: UIViewController {
 
         let selected = selectedUploadIds.contains(upload.id)
         stack.addArrangedSubview(makeActionButton(title: selected ? "Selected" : "Select", color: selected ? accentTeal : primaryBlue, action: #selector(handleToggleSelection(_:)), uploadId: upload.id))
-        stack.addArrangedSubview(makeLabel(text: upload.fileName, font: .systemFont(ofSize: 19, weight: .bold), color: primaryBlue))
+
+        let titleRow = UIStackView()
+        titleRow.axis = .horizontal
+        titleRow.alignment = .top
+        titleRow.spacing = 10
+        titleRow.addArrangedSubview(makeLabel(text: upload.fileName, font: .systemFont(ofSize: 19, weight: .bold), color: primaryBlue))
+        if isNewUpload(upload) {
+            titleRow.addArrangedSubview(makeNewBadge())
+        }
+        stack.addArrangedSubview(titleRow)
         stack.addArrangedSubview(makePill(text: statusText(upload.status), status: upload.status))
         stack.addArrangedSubview(makeLabel(text: uploadMetadata(upload), font: .systemFont(ofSize: 14, weight: .regular), color: secondaryText))
 
@@ -334,6 +347,12 @@ final class AdminDashboardViewController: UIViewController {
 
     @objc private func handleOpenUploadHistory() {
         navigationController?.pushViewController(AdminDashboardViewController(dashboard: dashboard, startsInHistory: true), animated: true)
+    }
+
+    @objc private func handleOpenNewUploads() {
+        let history = AdminDashboardViewController(dashboard: dashboard, startsInHistory: true)
+        history.statusFilter = "received"
+        navigationController?.pushViewController(history, animated: true)
     }
 
     @objc private func handleSignOut() {
@@ -563,7 +582,18 @@ final class AdminDashboardViewController: UIViewController {
     }
 
     private func statusText(_ status: String?) -> String {
-        (status ?? "unknown").replacingOccurrences(of: "_", with: " ").capitalized
+        if isNewStatus(status) {
+            return "New Upload"
+        }
+        return (status ?? "unknown").replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private func isNewUpload(_ upload: AdminUploadRecord) -> Bool {
+        isNewStatus(upload.status)
+    }
+
+    private func isNewStatus(_ status: String?) -> Bool {
+        (status ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "received"
     }
 
     private func categoryText(_ category: String?) -> String {
@@ -617,12 +647,27 @@ final class AdminDashboardViewController: UIViewController {
     private func makePill(text: String, status: String?) -> UILabel {
         let label = makeLabel(text: text, font: .systemFont(ofSize: 13, weight: .bold), color: primaryBlue)
         label.textAlignment = .center
-        label.backgroundColor = status == "processed"
+        label.backgroundColor = isNewStatus(status)
+            ? UIColor(red: 255 / 255, green: 247 / 255, blue: 230 / 255, alpha: 1)
+            : status == "processed"
             ? UIColor(red: 226 / 255, green: 246 / 255, blue: 236 / 255, alpha: 1)
             : UIColor(red: 233 / 255, green: 240 / 255, blue: 251 / 255, alpha: 1)
         label.layer.cornerRadius = 12
         label.clipsToBounds = true
         label.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        return label
+    }
+
+    private func makeNewBadge() -> UILabel {
+        let label = makeLabel(text: "NEW", font: .systemFont(ofSize: 12, weight: .heavy), color: .white)
+        label.textAlignment = .center
+        label.backgroundColor = warningOrange
+        label.layer.cornerRadius = 12
+        label.clipsToBounds = true
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        label.widthAnchor.constraint(greaterThanOrEqualToConstant: 52).isActive = true
+        label.heightAnchor.constraint(equalToConstant: 28).isActive = true
         return label
     }
 
